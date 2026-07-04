@@ -1,0 +1,36 @@
+export const ITEM_TYPES = ["review", "decision", "report", "info", "fun"] as const;
+export type ItemType = (typeof ITEM_TYPES)[number];
+
+export const ITEM_STATUSES = ["inbox", "archived", "trash"] as const;
+export type ItemStatus = (typeof ITEM_STATUSES)[number];
+
+export type ContentType = "html" | "markdown";
+
+export interface ItemMeta {
+  id: string;
+  title: string;
+  type: ItemType;
+  project: string | null;
+  tags: string[];
+  summary: string;
+  content_file: string;
+  content_type: ContentType;
+  status: ItemStatus;
+  pinned: boolean;
+  read_at: string | null;
+  trashed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  source: string;
+}
+
+export interface CreateItemInput {
+  title: string;
+  type: ItemType;
+  project?: string;
+  tags?: string[];
+  summary?: string;
+  content: string;
+  content_type?: ContentType;
+  source?: string;
+}

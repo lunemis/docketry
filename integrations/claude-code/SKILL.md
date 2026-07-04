@@ -1,0 +1,54 @@
+---
+name: board
+description: Publish AI deliverables (design docs, analyses, reports, fun content) to the user's docket review board as web pages. Use when the user says "put this on the board", "publish to docket", "board에 올려줘", or asks to make a long deliverable readable on mobile.
+---
+
+# board — publish deliverables to docket
+
+docket is the user's personal review board. Publish conversation deliverables as
+self-contained web pages; the user reviews them on the board (including on mobile)
+and archives/deletes them there.
+
+## Procedure
+
+1. **Produce the artifact** as a file in a temp directory:
+   - Documents with tables/charts/interactivity → **HTML** (quality rules below)
+   - Plain text documents (notes, checklists, summaries) → **Markdown** (the server
+     renders it with a clean document template)
+2. **Publish**:
+   ```bash
+   docket publish <file> --type <type> --project <project-slug> \
+     --summary "<one-line summary>" --tags a,b --source <agent-name>
+   ```
+   - If `--title` is omitted it is derived from `<title>`/`<h1>`/first `#` heading —
+     make sure one of them exists.
+   - Fallback without the CLI: read `~/.config/docket/config.json` (url/token) and
+     `POST {url}/api/items` with a Bearer token (JSON: title/type/content/content_type/…).
+3. **Report** the printed URL back to the user.
+
+## Metadata rules
+
+- `--type` (judge by what the content asks of the user):
+  - `review` — needs the user's review/feedback (design docs, drafts, code-review results)
+  - `decision` — needs the user to choose; put the decision question in the summary
+  - `report` — analysis/research results, read-only
+  - `info` — reference info, curiosities the user asked about
+  - `fun` — entertainment, toys
+- `--summary`: shown as two lines on the list card. What it is + what the user should do.
+- `--project`: related project slug; omit for general topics.
+
+## HTML artifact quality rules
+
+- **Self-contained single file**: no external CDN/font/image requests. Inline CSS/JS;
+  images as data URIs or inline SVG. 5MB limit.
+- **Mobile-first**: 390px base, `<meta name="viewport" content="width=device-width, initial-scale=1">`,
+  body max-width ~720px centered.
+- **Light/dark**: `:root { color-scheme: light dark }` + `prefers-color-scheme` styles for both.
+- **Wide content**: tables/code blocks/diagrams inside `overflow-x: auto` containers;
+  the page itself must never scroll horizontally.
+- **Dynamic pages allowed**: inline JS works, but the page runs in a sandboxed iframe —
+  no cookies/localStorage/parent access; don't fetch external resources.
+
+## Verify
+
+`docket list` shows the inbox to confirm the item landed.
