@@ -111,7 +111,7 @@ docketry의 핵심은 "board에 올려줘" 한 마디로 게시가 끝나는 것
 ## 운영
 
 - **프로덕션**: `npm run build && npm run start -- -p <포트>` — launchd, systemd, pm2, Docker 등 아무 수퍼바이저 아래에서.
-- **휴지통 정리**: 자동입니다 — 서버 안에서 내장 스위퍼가 6시간마다 돕니다. 외부 스케줄러를 쓰고 싶다면 `DOCKET_TRASH_TTL_DAYS=0`으로 끄고 `npm run cleanup`을 cron에 거세요.
+- **휴지통 정리**: 자동입니다 — 서버 안에서 내장 스위퍼가 15분마다 돕니다. 외부 스케줄러를 쓰고 싶다면 `DOCKET_TRASH_TTL_DAYS=0`으로 끄고 `npm run cleanup`을 cron에 거세요.
 - **외부 접속**: 본인의 터널/리버스 프록시(Cloudflare Tunnel, Tailscale) 뒤에 두면 됩니다. HTTPS로 서빙되면 세션 쿠키에 자동으로 `Secure`가 붙습니다.
 
 ## 보안 모델

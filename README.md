@@ -105,7 +105,7 @@ Each includes artifact quality rules (self-contained HTML, mobile-first, light/d
 ## Operating
 
 - **Production**: `npm run build && npm run start -- -p <port>` under any supervisor (launchd, systemd, pm2, Docker).
-- **Trash cleanup**: automatic — a built-in sweeper runs inside the server every 6 hours. Prefer an external schedule? Set `DOCKET_TRASH_TTL_DAYS=0` and cron `npm run cleanup` instead.
+- **Trash cleanup**: automatic — a built-in sweeper runs inside the server every 15 minutes. Prefer an external schedule? Set `DOCKET_TRASH_TTL_DAYS=0` and cron `npm run cleanup` instead.
 - **Remote access**: put it behind your own tunnel/reverse proxy (Cloudflare Tunnel, Tailscale). Session cookies are marked `Secure` automatically when served over HTTPS.
 
 ## Security model
