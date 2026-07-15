@@ -25,16 +25,14 @@ export default async function SharePage({ params, searchParams }: Props) {
 
   const secret = process.env.DROPBOARD_SESSION_SECRET;
   const item = await getItem(id);
-  if (!item) return <Invalid message={t.shareInvalid} />;
+  if (!secret || !item) return <Invalid message={t.shareInvalid} />;
 
   const epoch = Number(ep);
   const exp = Number(e);
-  if (secret) {
-    const ok =
-      (item.share_epoch ?? 0) === epoch &&
-      (await verifyShareSig(secret, id, epoch, exp, st));
-    if (!ok) return <Invalid message={t.shareExpired} />;
-  }
+  const ok =
+    (item.share_epoch ?? 0) === epoch &&
+    (await verifyShareSig(secret, id, epoch, exp, st));
+  if (!ok) return <Invalid message={t.shareExpired} />;
 
   const rawUrl = `/api/items/${id}/raw?e=${e}&ep=${ep}&st=${st}`;
 

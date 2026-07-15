@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { marked } from "marked";
+import { isUnsafeNoAuthEnabled } from "../../../../../lib/config";
 import {
   SESSION_COOKIE,
   verifyRawSig,
@@ -15,7 +16,7 @@ type Ctx = { params: Promise<{ id: string }> };
  * session cookie (direct top-level open). */
 async function isAuthorized(req: NextRequest, id: string): Promise<boolean> {
   const secret = process.env.DROPBOARD_SESSION_SECRET;
-  if (!secret) return true; // auth not configured (bare dev)
+  if (!secret) return isUnsafeNoAuthEnabled();
 
   const sp = req.nextUrl.searchParams;
   const sig = sp.get("st");

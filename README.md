@@ -105,6 +105,8 @@ Each includes artifact quality rules (self-contained HTML, mobile-first, light/d
 - `DROPBOARD_TOKEN` (required) — bearer token for the publish API
 - `DROPBOARD_PIN` (required) — 6-digit UI login; 5 failures → 15 min lockout
 - `DROPBOARD_SESSION_SECRET` (required) — HMAC key for session cookies & signed URLs
+- `DROPBOARD_UNSAFE_NO_AUTH` (optional, development only) — set to `true` to run
+  without authentication under `next dev`; rejected in production
 - `DROPBOARD_DATA_DIR` (default `./data/items`) — item storage location
 - `DROPBOARD_TRASH_TTL_DAYS` (default `30`) — days before the built-in sweeper purges trash; `0` skips the trash purge (expired temp items are always swept)
 - `NEXT_PUBLIC_DROPBOARD_LOCALE` (default `en`) — UI language `en`/`ko` (build-time)

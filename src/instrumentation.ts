@@ -8,6 +8,10 @@ const FIRST_SWEEP_DELAY_MS = 30 * 1000;
 
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
+
+  const { validateServerConfig } = await import("./lib/config");
+  validateServerConfig();
+
   const trashTtl = Number(process.env.DROPBOARD_TRASH_TTL_DAYS ?? 30);
 
   const { sweepStorage } = await import("./lib/store");

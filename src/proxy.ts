@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isUnsafeNoAuthEnabled } from "./lib/config";
 import { SESSION_COOKIE, verifySessionToken } from "./lib/session";
 
 const PUBLIC_PATHS = ["/login", "/api/auth/login"];
@@ -26,7 +27,18 @@ export default async function proxy(req: NextRequest) {
   }
 
   const secret = process.env.DROPBOARD_SESSION_SECRET;
-  if (!secret) return NextResponse.next(); // auth not configured (bare dev)
+  if (!secret) {
+    if (isUnsafeNoAuthEnabled()) return NextResponse.next();
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json(
+        { error: "server authentication is not configured" },
+        { status: 503 },
+      );
+    }
+    return new NextResponse("server authentication is not configured", {
+      status: 503,
+    });
+  }
 
   const cookie = req.cookies.get(SESSION_COOKIE)?.value;
   if (cookie && (await verifySessionToken(cookie, secret))) {
