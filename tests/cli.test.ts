@@ -33,5 +33,5 @@ test("rejects an invalid artifact type before publishing", () => {
   );
   assert.equal(result.status, 1);
   assert.match(result.stderr, /type must be one of/);
+  assert.doesNotMatch(result.stderr, /docket/i);
 });
-

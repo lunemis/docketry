@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * docket — publish AI deliverables to the Docket review board.
+ * dropboard — publish AI deliverables to the dropboard review board.
  *
  * Usage:
  *   dropboard publish <file> [--title T] [--type review|decision|report|info|fun]
@@ -8,7 +8,7 @@
  *                         [--server URL]
  *   dropboard list [--status inbox|archived|trash]
  *
- * Config: ~/.config/docket/config.json  { "url": "...", "token": "..." }
+ * Config: ~/.config/dropboard/config.json  { "url": "...", "token": "..." }
  * Env overrides: DROPBOARD_URL, DROPBOARD_TOKEN
  */
 import { readFile } from "node:fs/promises";
@@ -28,7 +28,7 @@ function loadConfig() {
 }
 
 function die(msg) {
-  console.error(`docket: ${msg}`);
+  console.error(`dropboard: ${msg}`);
   process.exit(1);
 }
 
@@ -91,7 +91,7 @@ async function publish(argv) {
   if (!token)
     die(
       `no token. Set DROPBOARD_TOKEN or add "token" to ${CONFIG_PATH}\n` +
-        `(same value as DROPBOARD_TOKEN in your docket server's .env.local)`,
+        `(same value as DROPBOARD_TOKEN in your dropboard server's .env.local)`,
     );
 
   const body = {
@@ -126,7 +126,7 @@ async function publish(argv) {
       body: JSON.stringify(body),
     });
   } catch {
-    die(`server unreachable at ${url} (is your docket server running?)`);
+    die(`server unreachable at ${url} (is your dropboard server running?)`);
   }
 
   const data = await res.json().catch(() => ({}));
