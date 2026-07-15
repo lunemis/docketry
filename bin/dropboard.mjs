@@ -145,14 +145,14 @@ async function list(argv) {
 
   let res;
   try {
-    res = await fetch(`${url}/api/items?status=${status}`, {
+    res = await fetch(`${url}/api/items?status=${status}&limit=500`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
   } catch {
     die(`server unreachable at ${url}`);
   }
   if (!res.ok) die(`list failed (${res.status})`);
-  const { items } = await res.json();
+  const { items, has_more: hasMore } = await res.json();
   if (!items.length) {
     console.log(`(${status} is empty)`);
     return;
@@ -161,6 +161,7 @@ async function list(argv) {
     const read = it.read_at ? " " : "●";
     console.log(`${read} [${it.type}] ${it.id}  ${it.title}`);
   }
+  if (hasMore) console.log("(more items available; narrow the list with --status)");
 }
 
 const [cmd, ...rest] = process.argv.slice(2);

@@ -41,10 +41,27 @@ function matchesQuery(item: ItemMeta, q: string): boolean {
 }
 
 async function fetchItems(status: ItemStatus): Promise<ItemMeta[]> {
-  const res = await fetch(`/api/items?status=${status}`, { cache: "no-store" });
-  if (!res.ok) throw new Error(`failed to load items (${res.status})`);
-  const data = (await res.json()) as { items?: ItemMeta[] };
-  return data.items ?? [];
+  const items: ItemMeta[] = [];
+  let offset = 0;
+  let hasMore = true;
+  while (hasMore) {
+    const params = new URLSearchParams({
+      status,
+      limit: "500",
+      offset: String(offset),
+    });
+    const res = await fetch(`/api/items?${params}`, { cache: "no-store" });
+    if (!res.ok) throw new Error(`failed to load items (${res.status})`);
+    const data = (await res.json()) as {
+      items?: ItemMeta[];
+      has_more?: boolean;
+    };
+    const page = data.items ?? [];
+    items.push(...page);
+    offset += page.length;
+    hasMore = Boolean(data.has_more) && page.length > 0;
+  }
+  return items;
 }
 
 export default function Board({ status }: { status: ItemStatus }) {

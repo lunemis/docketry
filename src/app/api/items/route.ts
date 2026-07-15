@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isWriteAuthorized } from "../../../lib/auth";
+import { readJsonObject } from "../../../lib/request";
 import { createItem, listItems } from "../../../lib/store";
 import {
   ITEM_STATUSES,
@@ -9,11 +10,36 @@ import {
 } from "../../../lib/types";
 
 const MAX_CONTENT_BYTES = 5 * 1024 * 1024;
+const MAX_REQUEST_BYTES = 8 * 1024 * 1024;
+const MAX_PROJECT_LENGTH = 100;
+const MAX_TAGS = 20;
+const MAX_TAG_LENGTH = 50;
+const MAX_SOURCE_LENGTH = 100;
+const MAX_SUMMARY_LENGTH = 500;
+const MAX_QUERY_LENGTH = 200;
+const DEFAULT_PAGE_SIZE = 100;
+const MAX_PAGE_SIZE = 500;
+
+function parseInteger(
+  value: string | null,
+  fallback: number,
+  min: number,
+  max: number,
+): number | null {
+  if (value === null) return fallback;
+  if (!/^\d+$/.test(value)) return null;
+  const parsed = Number(value);
+  return parsed >= min && parsed <= max ? parsed : null;
+}
 
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const status = sp.get("status") ?? undefined;
   const type = sp.get("type") ?? undefined;
+  const project = sp.get("project") ?? undefined;
+  const q = sp.get("q") ?? undefined;
+  const limit = parseInteger(sp.get("limit"), DEFAULT_PAGE_SIZE, 1, MAX_PAGE_SIZE);
+  const offset = parseInteger(sp.get("offset"), 0, 0, 1_000_000);
 
   if (status && !ITEM_STATUSES.includes(status as ItemStatus)) {
     return NextResponse.json({ error: "invalid status" }, { status: 400 });
@@ -21,14 +47,33 @@ export async function GET(req: NextRequest) {
   if (type && !ITEM_TYPES.includes(type as ItemType)) {
     return NextResponse.json({ error: "invalid type" }, { status: 400 });
   }
+  if (project && project.length > MAX_PROJECT_LENGTH) {
+    return NextResponse.json({ error: "project is too long" }, { status: 400 });
+  }
+  if (q && q.length > MAX_QUERY_LENGTH) {
+    return NextResponse.json({ error: "query is too long" }, { status: 400 });
+  }
+  if (limit === null || offset === null) {
+    return NextResponse.json(
+      { error: `limit must be 1-${MAX_PAGE_SIZE}; offset must be non-negative` },
+      { status: 400 },
+    );
+  }
 
-  const items = await listItems({
+  const allItems = await listItems({
     status: status as ItemStatus | undefined,
     type: type as ItemType | undefined,
-    project: sp.get("project") ?? undefined,
-    q: sp.get("q") ?? undefined,
+    project,
+    q,
   });
-  return NextResponse.json({ items });
+  const items = allItems.slice(offset, offset + limit);
+  return NextResponse.json({
+    items,
+    total: allItems.length,
+    limit,
+    offset,
+    has_more: offset + items.length < allItems.length,
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -39,12 +84,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let body: Record<string, unknown>;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
+  const parsedBody = await readJsonObject(req, MAX_REQUEST_BYTES);
+  if (!parsedBody.ok) {
+    return NextResponse.json(
+      { error: parsedBody.error },
+      { status: parsedBody.status },
+    );
   }
+  const body = parsedBody.value;
 
   const title = typeof body.title === "string" ? body.title.trim() : "";
   const content = typeof body.content === "string" ? body.content : "";
@@ -89,20 +136,63 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  if (body.project !== undefined && typeof body.project !== "string") {
+    return NextResponse.json(
+      { error: "project must be a string" },
+      { status: 400 },
+    );
+  }
+  const project = typeof body.project === "string" ? body.project.trim() : "";
+  if (project.length > MAX_PROJECT_LENGTH) {
+    return NextResponse.json(
+      { error: `project must be at most ${MAX_PROJECT_LENGTH} chars` },
+      { status: 400 },
+    );
+  }
+  if (body.tags !== undefined && !Array.isArray(body.tags)) {
+    return NextResponse.json({ error: "tags must be an array" }, { status: 400 });
+  }
+  const tags = (body.tags ?? []) as unknown[];
+  if (
+    tags.length > MAX_TAGS ||
+    tags.some(
+      (tag) => typeof tag !== "string" || tag.length > MAX_TAG_LENGTH,
+    )
+  ) {
+    return NextResponse.json(
+      { error: `tags must contain at most ${MAX_TAGS} strings of ${MAX_TAG_LENGTH} chars` },
+      { status: 400 },
+    );
+  }
+  if (
+    body.summary !== undefined &&
+    (typeof body.summary !== "string" || body.summary.length > MAX_SUMMARY_LENGTH)
+  ) {
+    return NextResponse.json(
+      { error: `summary must be at most ${MAX_SUMMARY_LENGTH} chars` },
+      { status: 400 },
+    );
+  }
+  if (
+    body.source !== undefined &&
+    (typeof body.source !== "string" || body.source.length > MAX_SOURCE_LENGTH)
+  ) {
+    return NextResponse.json(
+      { error: `source must be at most ${MAX_SOURCE_LENGTH} chars` },
+      { status: 400 },
+    );
+  }
+
   const item = await createItem({
     title,
     type,
     content,
     content_type: contentType,
-    project:
-      typeof body.project === "string" && body.project.trim()
-        ? body.project.trim()
-        : undefined,
-    tags: Array.isArray(body.tags)
-      ? body.tags.filter((t): t is string => typeof t === "string").slice(0, 20)
-      : undefined,
-    summary:
-      typeof body.summary === "string" ? body.summary.slice(0, 500) : undefined,
+    project: project || undefined,
+    tags: tags
+      .map((tag) => (tag as string).trim())
+      .filter((tag, index, all) => tag && all.indexOf(tag) === index),
+    summary: typeof body.summary === "string" ? body.summary : undefined,
     source: typeof body.source === "string" ? body.source : undefined,
     ttl_minutes: ttl as number | undefined,
   });

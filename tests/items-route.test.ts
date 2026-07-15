@@ -7,19 +7,23 @@ import { NextRequest } from "next/server";
 
 let dataDir: string;
 let POST: typeof import("../src/app/api/items/route").POST;
+let GET: typeof import("../src/app/api/items/route").GET;
 
 before(async () => {
   dataDir = await mkdtemp(path.join(os.tmpdir(), "dropboard-items-route-"));
   process.env.DROPBOARD_DATA_DIR = dataDir;
   process.env.DROPBOARD_TOKEN = "items-route-token-that-is-long-enough";
-  ({ POST } = await import("../src/app/api/items/route"));
+  ({ GET, POST } = await import("../src/app/api/items/route"));
 });
 
 after(async () => {
   if (dataDir) await rm(dataDir, { recursive: true, force: true });
 });
 
-function publishRequest(authorized: boolean): NextRequest {
+function publishRequest(
+  authorized: boolean,
+  overrides: Record<string, unknown> = {},
+): NextRequest {
   return new NextRequest("http://localhost/api/items", {
     method: "POST",
     headers: {
@@ -33,6 +37,7 @@ function publishRequest(authorized: boolean): NextRequest {
       type: "report",
       content: "# Report",
       content_type: "markdown",
+      ...overrides,
     }),
   });
 }
@@ -49,3 +54,23 @@ test("publish API creates a validated item", async () => {
   assert.match(body.url, /^\/i\//);
 });
 
+test("publish API rejects oversized metadata", async () => {
+  const response = await POST(
+    publishRequest(true, { project: "p".repeat(101) }),
+  );
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /project/);
+});
+
+test("list API returns bounded pagination metadata", async () => {
+  await POST(publishRequest(true, { title: "Second" }));
+  await POST(publishRequest(true, { title: "Third" }));
+  const response = await GET(
+    new NextRequest("http://localhost/api/items?limit=2&offset=0"),
+  );
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.items.length, 2);
+  assert.ok(body.total >= 3);
+  assert.equal(body.has_more, true);
+});

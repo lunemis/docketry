@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSessionToken, SESSION_COOKIE } from "../../../../lib/session";
+import { readJsonObject } from "../../../../lib/request";
 
 const SESSION_TTL_MS = 180 * 24 * 3600 * 1000; // 180 days
 const MAX_FAILS = 5;
 const LOCK_MS = 15 * 60 * 1000;
+const MAX_LOGIN_BYTES = 1024;
 
 // in-memory lockout — single-user server, resets on restart (acceptable)
 let fails = 0;
@@ -27,12 +29,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let body: Record<string, unknown>;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
+  const parsedBody = await readJsonObject(req, MAX_LOGIN_BYTES);
+  if (!parsedBody.ok) {
+    return NextResponse.json(
+      { error: parsedBody.error },
+      { status: parsedBody.status },
+    );
   }
+  const body = parsedBody.value;
 
   if (String(body.pin ?? "") !== pin) {
     fails++;

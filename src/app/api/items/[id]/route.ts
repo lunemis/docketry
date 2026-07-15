@@ -1,11 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { signRawUrl } from "../../../../lib/session";
+import { readJsonObject } from "../../../../lib/request";
 import { deleteItem, getItem, updateItem } from "../../../../lib/store";
 import { ITEM_STATUSES, type ItemStatus } from "../../../../lib/types";
 
 type Ctx = { params: Promise<{ id: string }> };
 
 const RAW_URL_TTL_MS = 60 * 60 * 1000;
+const MAX_PATCH_BYTES = 16 * 1024;
+const PATCH_KEYS = new Set([
+  "status",
+  "pinned",
+  "read",
+  "keep",
+  "ttl_minutes",
+]);
 
 export async function GET(_req: NextRequest, ctx: Ctx) {
   const { id } = await ctx.params;
@@ -25,11 +34,24 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
 export async function PATCH(req: NextRequest, ctx: Ctx) {
   const { id } = await ctx.params;
 
-  let body: Record<string, unknown>;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
+  const parsedBody = await readJsonObject(req, MAX_PATCH_BYTES);
+  if (!parsedBody.ok) {
+    return NextResponse.json(
+      { error: parsedBody.error },
+      { status: parsedBody.status },
+    );
+  }
+  const body = parsedBody.value;
+
+  const unknownKeys = Object.keys(body).filter((key) => !PATCH_KEYS.has(key));
+  if (unknownKeys.length > 0) {
+    return NextResponse.json(
+      { error: `unknown patch field: ${unknownKeys[0]}` },
+      { status: 400 },
+    );
+  }
+  if (Object.keys(body).length === 0) {
+    return NextResponse.json({ error: "empty patch" }, { status: 400 });
   }
 
   if (
@@ -38,6 +60,14 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   ) {
     return NextResponse.json({ error: "invalid status" }, { status: 400 });
   }
+  for (const field of ["pinned", "read", "keep"] as const) {
+    if (body[field] !== undefined && typeof body[field] !== "boolean") {
+      return NextResponse.json(
+        { error: `${field} must be boolean` },
+        { status: 400 },
+      );
+    }
+  }
   const ttl = body.ttl_minutes;
   if (
     ttl !== undefined &&
@@ -45,6 +75,12 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   ) {
     return NextResponse.json(
       { error: "ttl_minutes must be a number between 1 and 10080 (7 days)" },
+      { status: 400 },
+    );
+  }
+  if (body.keep === true && ttl !== undefined) {
+    return NextResponse.json(
+      { error: "keep and ttl_minutes cannot be combined" },
       { status: 400 },
     );
   }
