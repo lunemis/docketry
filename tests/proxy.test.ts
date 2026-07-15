@@ -19,12 +19,12 @@ test("returns 503 instead of opening APIs when auth is unconfigured", async () =
   assert.equal(response.status, 503);
 });
 
-test("keeps the health endpoint public", async () => {
+test("keeps health and app icons public", async () => {
   delete process.env.DROPBOARD_SESSION_SECRET;
-  const response = await proxy(
-    new NextRequest("http://localhost/api/health"),
-  );
-  assert.equal(response.status, 200);
+  for (const path of ["/api/health", "/icon.svg"]) {
+    const response = await proxy(new NextRequest(`http://localhost${path}`));
+    assert.equal(response.status, 200);
+  }
 });
 
 test("explicit development no-auth mode bypasses the proxy", async () => {
