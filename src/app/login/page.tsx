@@ -56,50 +56,56 @@ export default function LoginPage() {
   }, [pin, router]);
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-8 px-6">
-      <h1>
-        <Brand />
-      </h1>
+    <main className="login-shell relative flex flex-1 items-center justify-center overflow-hidden px-4 py-10 sm:px-6">
+      <section className="login-card relative z-1 w-full max-w-md rounded-3xl border border-[var(--line)] p-6 text-center sm:p-9">
+        <h1 className="flex justify-center">
+          <Brand />
+        </h1>
+        <p className="mt-3 text-sm text-[var(--muted)]">{t.brandTagline}</p>
 
-      <label className="flex flex-col items-center gap-4">
-        <span className="text-sm text-[var(--muted)]">{t.pinPrompt}</span>
-        <div className="relative">
-          <input
-            ref={inputRef}
-            type="password"
-            inputMode="numeric"
-            autoComplete="off"
-            maxLength={6}
-            value={pin}
-            disabled={busy}
-            onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
-            className="absolute inset-0 opacity-0"
-            aria-label={t.pinLabel}
-          />
-          <div className="pointer-events-none flex gap-2.5">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <span
-                key={i}
-                className={`flex h-13 w-10 items-center justify-center rounded-lg border-2 text-xl font-bold ${
-                  i < pin.length
-                    ? "border-[var(--ink)] bg-[var(--surface)]"
-                    : "border-[var(--line)] bg-[var(--surface)]"
-                }`}
-              >
-                {i < pin.length ? "●" : ""}
-              </span>
-            ))}
+        <label className="mt-9 flex flex-col items-center gap-4">
+          <span className="text-sm font-medium">{t.pinPrompt}</span>
+          <div className="relative w-full">
+            <input
+              ref={inputRef}
+              type="password"
+              inputMode="numeric"
+              autoComplete="off"
+              maxLength={6}
+              value={pin}
+              disabled={busy}
+              onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
+              className="absolute inset-0 z-1 cursor-text opacity-0"
+              aria-label={t.pinLabel}
+            />
+            <div className="pointer-events-none flex justify-center gap-2 sm:gap-2.5">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <span
+                  key={i}
+                  className={`pin-cell flex h-13 w-10 items-center justify-center rounded-xl border text-base font-bold sm:h-14 sm:w-11 ${
+                    i < pin.length
+                      ? "pin-cell--filled border-[var(--ink)]"
+                      : "border-[var(--line-strong)]"
+                  }`}
+                >
+                  {i < pin.length ? "●" : ""}
+                </span>
+              ))}
+            </div>
           </div>
-        </div>
-      </label>
+        </label>
 
-      <p
-        className="h-5 text-sm text-[var(--accent)]"
-        role="status"
-        aria-live="polite"
-      >
-        {error ?? (busy ? t.pinChecking : "")}
-      </p>
-    </div>
+        <p
+          className="mt-5 h-5 text-sm font-medium text-[var(--accent)]"
+          role="status"
+          aria-live="polite"
+        >
+          {error ?? (busy ? t.pinChecking : "")}
+        </p>
+        <p className="mt-5 text-[11px] text-[var(--muted-soft)]">
+          {t.pinPrivacy}
+        </p>
+      </section>
+    </main>
   );
 }

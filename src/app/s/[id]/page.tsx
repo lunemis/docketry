@@ -1,6 +1,7 @@
 import { verifyShareSig } from "../../../lib/session";
 import { getItem, isValidId } from "../../../lib/store";
 import { t } from "../../../lib/i18n";
+import { BrandMark } from "../../../components/Brand";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -38,7 +39,8 @@ export default async function SharePage({ params, searchParams }: Props) {
 
   return (
     <div className="flex h-dvh flex-col">
-      <header className="flex h-14 shrink-0 items-center border-b border-[var(--line)] bg-[var(--bg)] px-4">
+      <header className="viewer-header flex h-15 shrink-0 items-center gap-3 border-b border-[var(--line)] px-4">
+        <BrandMark className="h-6 w-6" />
         <h1 className="min-w-0 flex-1 truncate text-sm font-semibold">
           {item.title}
         </h1>

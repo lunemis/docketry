@@ -204,13 +204,13 @@ export default function ViewerPage() {
 
   return (
     <div className="flex h-dvh flex-col">
-      <header className="flex h-14 shrink-0 items-center gap-1 border-b border-[var(--line)] bg-[var(--bg)] px-2">
+      <header className="viewer-header flex h-15 shrink-0 items-center gap-1 border-b border-[var(--line)] px-2 sm:px-3">
         <button
           aria-label={t.back}
           onClick={() =>
             meta ? router.push(LIST_PATH[meta.status]) : router.push("/")
           }
-          className="flex h-11 w-11 items-center justify-center rounded-full active:bg-[var(--surface-2)]"
+          className="flex h-10 w-10 items-center justify-center rounded-xl transition-colors hover:bg-[var(--surface-2)] active:scale-95"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <path d="M15 18l-6-6 6-6" />

@@ -19,8 +19,8 @@ const TYPE_KEYS = Object.keys(TYPE_LABELS) as ItemType[];
 type BoardWidth = "narrow" | "wide" | "full";
 const WIDTH_STORAGE_KEY = "dropboard:board-width";
 const WIDTH_PX: Record<BoardWidth, string> = {
-  narrow: "36rem",
-  wide: "64rem",
+  narrow: "42rem",
+  wide: "72rem",
   full: "100%",
 };
 const WIDTH_OPTIONS: BoardWidth[] = ["narrow", "wide", "full"];
@@ -78,7 +78,7 @@ export default function Board({ status }: { status: ItemStatus }) {
   const [boardWidth, setBoardWidth] = useStoredChoice(
     WIDTH_STORAGE_KEY,
     WIDTH_OPTIONS,
-    "narrow",
+    "wide",
   );
 
   const load = useCallback(async () => {
@@ -213,16 +213,22 @@ export default function Board({ status }: { status: ItemStatus }) {
     status === "inbox" ? (items?.filter((i) => !i.read_at).length ?? 0) : 0;
 
   const card = (item: ItemMeta) => (
-    <li key={item.id}>
-      <div className="flex items-stretch gap-1 rounded-xl bg-[var(--surface)] p-3">
+    <li key={item.id} className="group">
+      <div
+        className={`artifact-card flex items-stretch gap-1 rounded-2xl border p-3.5 sm:p-4 ${
+          !item.read_at && status === "inbox"
+            ? "artifact-card--unread"
+            : "border-[var(--line)]"
+        }`}
+      >
         <Link
           href={`/i/${item.id}`}
-          className="flex min-w-0 flex-1 items-start gap-3"
+          className="flex min-w-0 flex-1 items-start gap-3.5 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2"
         >
           <TypeSeal type={item.type} temp={Boolean(item.expires_at)} />
           <div className="min-w-0 flex-1">
             <h2
-              className={`line-clamp-2 text-[15px] leading-snug ${
+              className={`line-clamp-2 text-[15px] leading-snug tracking-[-0.01em] sm:text-base ${
                 !item.read_at && status === "inbox"
                   ? "font-semibold"
                   : "font-medium"
@@ -235,28 +241,39 @@ export default function Board({ status }: { status: ItemStatus }) {
                 />
               )}
               {item.pinned && (
-                <span className="mr-1 text-[var(--accent)]">📌</span>
+                <span
+                  aria-label={t.pin}
+                  className="mr-1 inline-flex text-[var(--accent)]"
+                >
+                  <PinIcon />
+                </span>
               )}
               {item.title}
             </h2>
             {item.summary && (
-              <p className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-[var(--muted)]">
+              <p className="mt-1 line-clamp-2 max-w-3xl text-[13px] leading-relaxed text-[var(--muted)] sm:text-sm">
                 {item.summary}
               </p>
             )}
-            <p className="mt-1 font-mono text-[11px] text-[var(--muted)]">
+            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10px] text-[var(--muted)] sm:text-[11px]">
               {item.expires_at && (
-                <span className="text-[var(--accent)]">
-                  ⏳ {remainTime(item.expires_at)}
-                  {" · "}
+                <span className="metadata-chip metadata-chip--accent">
+                  {remainTime(item.expires_at)}
                 </span>
               )}
-              {item.project ? `${item.project} · ` : ""}
-              {relTime(item.created_at)}
-            </p>
+              {item.project && (
+                <span className="metadata-chip">{item.project}</span>
+              )}
+              {item.tags.slice(0, 3).map((tag) => (
+                <span key={tag} className="text-[var(--muted-soft)]">
+                  #{tag}
+                </span>
+              ))}
+              <time dateTime={item.created_at}>{relTime(item.created_at)}</time>
+            </div>
           </div>
         </Link>
-        <div className="flex flex-col justify-center">
+        <div className="card-actions flex flex-col justify-center">
           {item.expires_at ? (
             <>
               <IconBtn label={t.actionKeep} onClick={() => keep(item)}>
@@ -324,65 +341,72 @@ export default function Board({ status }: { status: ItemStatus }) {
 
   return (
     <div
-      className="mx-auto flex w-full flex-1 flex-col"
+      className="board-layout mx-auto flex w-full flex-1 flex-col"
       style={{ maxWidth: WIDTH_PX[boardWidth] }}
     >
-      <header className="sticky top-0 z-10 border-b border-[var(--line)] bg-[var(--bg)]/90 px-4 pt-4 backdrop-blur">
-        <div className="flex items-baseline justify-between">
-          <h1>
-            <Brand compact />
-          </h1>
-          <div className="flex items-center gap-3">
-            {unreadCount > 0 && (
-              <span className="font-mono text-xs text-[var(--accent)]">
-                {t.unread(unreadCount)}
-              </span>
-            )}
-            <div
-              className="hidden items-center gap-1 sm:flex"
-              role="group"
-              aria-label={t.widthLabel}
-            >
-              {WIDTH_OPTIONS.map((w) => (
-                <button
-                  key={w}
-                  onClick={() => setBoardWidth(w)}
-                  title={t.widthLabel}
-                  className={`rounded-full px-2.5 py-1 font-mono text-[11px] ${
-                    boardWidth === w
-                      ? "bg-[var(--ink)] font-semibold text-[var(--bg)]"
-                      : "text-[var(--muted)]"
-                  }`}
-                >
-                  {w === "narrow"
-                    ? t.widthNarrow
-                    : w === "wide"
-                      ? t.widthWide
-                      : t.widthFull}
-                </button>
-              ))}
+      <header className="sticky top-0 z-10 px-3 pt-3 sm:px-5 sm:pt-5">
+        <div className="board-chrome overflow-hidden rounded-2xl border border-[var(--line)]">
+          <div className="flex items-center justify-between gap-4 px-4 py-3.5 sm:px-5">
+            <div className="min-w-0">
+              <h1>
+                <Brand compact />
+              </h1>
+              <p className="mt-0.5 hidden text-xs text-[var(--muted)] sm:block">
+                {t.brandTagline}
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2.5">
+              {unreadCount > 0 && (
+                <span className="unread-badge font-mono text-[11px] font-semibold">
+                  {t.unread(unreadCount)}
+                </span>
+              )}
+              <div
+                className="width-control hidden items-center gap-0.5 rounded-full border border-[var(--line)] p-0.5 sm:flex"
+                role="group"
+                aria-label={t.widthLabel}
+              >
+                {WIDTH_OPTIONS.map((w) => (
+                  <button
+                    key={w}
+                    onClick={() => setBoardWidth(w)}
+                    title={t.widthLabel}
+                    className={`rounded-full px-2.5 py-1 font-mono text-[10px] transition-colors ${
+                      boardWidth === w
+                        ? "bg-[var(--ink)] font-semibold text-[var(--bg)] shadow-sm"
+                        : "text-[var(--muted)] hover:text-[var(--ink)]"
+                    }`}
+                  >
+                    {w === "narrow"
+                      ? t.widthNarrow
+                      : w === "wide"
+                        ? t.widthWide
+                        : t.widthFull}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
+          <nav className="flex gap-1 border-t border-[var(--line)] px-2 py-1.5 text-sm sm:px-3">
+            {TABS.map((tab) => (
+              <Link
+                key={tab.href}
+                href={tab.href}
+                className={`rounded-lg px-3 py-1.5 transition-colors ${
+                  tab.status === status
+                    ? "bg-[var(--surface-2)] font-semibold text-[var(--ink)]"
+                    : "text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--ink)]"
+                }`}
+              >
+                {tab.label}
+              </Link>
+            ))}
+          </nav>
         </div>
-        <nav className="mt-2 flex gap-5 text-[15px]">
-          {TABS.map((tab) => (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              className={
-                tab.status === status
-                  ? "border-b-2 border-[var(--ink)] pb-2 font-semibold"
-                  : "pb-2 text-[var(--muted)]"
-              }
-            >
-              {tab.label}
-            </Link>
-          ))}
-        </nav>
       </header>
 
       {items !== null && items.length > 0 && (
-        <div className="flex flex-col gap-2 px-4 py-3">
+        <div className="mx-3 mt-3 flex flex-col gap-2.5 rounded-2xl border border-[var(--line)] bg-[var(--surface-muted)] p-3 sm:mx-5 sm:mt-4 sm:p-4">
           <div className="relative">
             <svg
               className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-[var(--muted)]"
@@ -403,7 +427,7 @@ export default function Board({ status }: { status: ItemStatus }) {
               onChange={(e) => setQuery(e.target.value)}
               placeholder={t.search}
               aria-label={t.search}
-              className="h-10 w-full rounded-full bg-[var(--surface)] pr-4 pl-10 text-sm outline-none placeholder:text-[var(--muted)]"
+              className="search-field h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] pr-4 pl-10 text-sm outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:ring-3 focus:ring-[var(--accent-ring)]"
             />
           </div>
           <div className="scrollbar-none flex gap-2 overflow-x-auto">
@@ -426,7 +450,7 @@ export default function Board({ status }: { status: ItemStatus }) {
         </div>
       )}
 
-      <main className="flex-1 px-4 pb-24">
+      <main className="flex-1 px-3 pb-24 sm:px-5">
         {loadFailed ? (
           <p className="py-16 text-center text-sm text-[var(--muted)]">
             {t.loadFailed}
@@ -438,19 +462,19 @@ export default function Board({ status }: { status: ItemStatus }) {
         ) : visible.length === 0 ? (
           <EmptyState status={status} filtered={Boolean(items?.length)} />
         ) : (
-          <div className="flex flex-col gap-2 pt-1">
+          <div className="flex flex-col gap-2.5 pt-3 sm:pt-4">
             {temps.length > 0 && (
               <>
                 <p className="mt-1 px-1 font-mono text-[11px] font-semibold tracking-wide text-[var(--muted)] uppercase">
                   {t.tempGroup}
                 </p>
-                <ul className="flex flex-col gap-2">{temps.map(card)}</ul>
+                <ul className="flex flex-col gap-2.5">{temps.map(card)}</ul>
                 {regular.length > 0 && (
                   <div className="mt-2 border-t border-[var(--line)]" />
                 )}
               </>
             )}
-            <ul className="flex flex-col gap-2">{regular.map(card)}</ul>
+            <ul className="flex flex-col gap-2.5">{regular.map(card)}</ul>
           </div>
         )}
       </main>
@@ -497,10 +521,10 @@ function FilterChip({
   return (
     <button
       onClick={onClick}
-      className={`shrink-0 rounded-full px-3.5 py-1.5 text-[13px] ${
+      className={`shrink-0 rounded-lg border px-3 py-1.5 text-[12px] transition-colors ${
         active
-          ? "bg-[var(--ink)] font-semibold text-[var(--bg)]"
-          : "bg-[var(--surface)] text-[var(--muted)]"
+          ? "border-[var(--ink)] bg-[var(--ink)] font-semibold text-[var(--bg)]"
+          : "border-[var(--line)] bg-[var(--surface)] text-[var(--muted)] hover:border-[var(--line-strong)] hover:text-[var(--ink)]"
       }`}
     >
       {children}
@@ -517,15 +541,15 @@ function EmptyState({
 }) {
   if (filtered) {
     return (
-      <p className="py-16 text-center text-sm text-[var(--muted)]">
+      <p className="empty-panel my-4 rounded-2xl border border-dashed border-[var(--line-strong)] py-16 text-center text-sm text-[var(--muted)]">
         {t.noMatches}
       </p>
     );
   }
   if (status === "inbox") {
     return (
-      <div className="flex flex-col items-center py-24">
-        <div className="-rotate-6 rounded-lg border-[3px] border-[var(--accent)] px-4 py-1.5 font-mono text-2xl font-bold text-[var(--accent)] opacity-80">
+      <div className="empty-panel my-4 flex flex-col items-center rounded-2xl border border-dashed border-[var(--line-strong)] py-20">
+        <div className="-rotate-4 rounded-lg border-2 border-[var(--accent)] bg-[var(--accent-soft)] px-4 py-1.5 font-mono text-xl font-bold text-[var(--accent)]">
           {t.stamp}
         </div>
         <p className="mt-6 text-sm font-medium">{t.emptyInboxTitle}</p>
@@ -534,7 +558,7 @@ function EmptyState({
     );
   }
   return (
-    <div className="py-24 text-center">
+    <div className="empty-panel my-4 rounded-2xl border border-dashed border-[var(--line-strong)] py-20 text-center">
       <p className="text-sm text-[var(--muted)]">
         {status === "archived" ? t.emptyArchive : t.emptyTrash}
       </p>
@@ -559,10 +583,24 @@ function IconBtn({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className="flex h-11 w-11 items-center justify-center rounded-full text-[var(--muted)] active:bg-[var(--surface-2)]"
+      className="flex h-10 w-10 items-center justify-center rounded-xl text-[var(--muted)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--ink)] active:scale-95"
     >
       {children}
     </button>
+  );
+}
+
+function PinIcon() {
+  return (
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path d="M9 3h6l-.6 5.2 3 3V14H13v7l-1 1-1-1v-7H6.6v-2.8l3-3L9 3Z" />
+    </svg>
   );
 }
 

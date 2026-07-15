@@ -22,7 +22,7 @@ export function TypeSeal({ type, temp }: { type: ItemType; temp?: boolean }) {
     <span
       aria-label={label}
       title={label}
-      className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md border-2 font-bold ${
+      className={`type-seal mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border font-bold sm:h-11 sm:w-11 ${
         LOCALE === "ko" ? "text-[15px]" : "font-mono text-[9px] tracking-wide"
       }`}
       style={{
@@ -30,7 +30,7 @@ export function TypeSeal({ type, temp }: { type: ItemType; temp?: boolean }) {
         borderColor: color.fg,
         background: temp ? "transparent" : color.bg,
         borderStyle: temp ? "dashed" : "solid",
-        opacity: temp ? 0.75 : 1,
+        opacity: temp ? 0.78 : 1,
       }}
     >
       {seal}

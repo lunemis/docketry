@@ -5,6 +5,7 @@ export const LOCALE: Locale =
 
 const STRINGS = {
   en: {
+    brandTagline: "A calm review space for AI deliverables",
     inbox: "Inbox",
     archive: "Archive",
     trash: "Trash",
@@ -44,6 +45,7 @@ const STRINGS = {
     unreadDot: "Unread",
     pinLabel: "PIN",
     pinPrompt: "Enter your 6-digit PIN",
+    pinPrivacy: "Private by default · your PIN stays on this server",
     pinChecking: "Checking…",
     pinWrong: "Wrong PIN",
     pinWrongRemaining: (n: number) => `Wrong PIN (${n} tries left)`,
@@ -62,6 +64,7 @@ const STRINGS = {
     shareInvalid: "Invalid share link",
   },
   ko: {
+    brandTagline: "AI 산출물을 차분하게 검토하는 공간",
     inbox: "받은함",
     archive: "보관함",
     trash: "휴지통",
@@ -101,6 +104,7 @@ const STRINGS = {
     unreadDot: "미읽음",
     pinLabel: "PIN",
     pinPrompt: "PIN 6자리를 입력하세요",
+    pinPrivacy: "기본 비공개 · PIN은 이 서버 안에서만 확인합니다",
     pinChecking: "확인 중…",
     pinWrong: "PIN이 올바르지 않습니다",
     pinWrongRemaining: (n: number) =>
