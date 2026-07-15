@@ -10,6 +10,12 @@ const DATA_DIR =
   process.env.DROPBOARD_DATA_DIR ?? path.join(process.cwd(), "data", "items");
 const TTL_DAYS = Number(process.env.DROPBOARD_TRASH_TTL_DAYS ?? 30);
 const dry = process.argv.includes("--dry");
+
+if (!Number.isFinite(TTL_DAYS) || TTL_DAYS < 0) {
+  console.error("DROPBOARD_TRASH_TTL_DAYS must be a non-negative number");
+  process.exit(1);
+}
+
 const cutoff = Date.now() - TTL_DAYS * 86400_000;
 
 let entries = [];
@@ -34,6 +40,7 @@ for (const id of entries) {
   const expiredTemp =
     meta.expires_at && new Date(meta.expires_at).getTime() <= Date.now();
   const staleTrash =
+    TTL_DAYS > 0 &&
     meta.status === "trash" &&
     meta.trashed_at &&
     new Date(meta.trashed_at).getTime() <= cutoff;

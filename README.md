@@ -116,7 +116,7 @@ Each includes artifact quality rules (self-contained HTML, mobile-first, light/d
 ## Operating
 
 - **Production**: `npm run build && npm run start -- -p <port>` under any supervisor (launchd, systemd, pm2, Docker).
-- **Trash cleanup**: automatic — a built-in sweeper runs inside the server every 15 minutes. Prefer an external schedule? Set `DROPBOARD_TRASH_TTL_DAYS=0` and cron `npm run cleanup` instead.
+- **Trash cleanup**: automatic — a built-in sweeper runs inside the server every 15 minutes. Prefer an external schedule? Run the server with `DROPBOARD_TRASH_TTL_DAYS=0`, then set the desired retention explicitly in cron, for example `DROPBOARD_TRASH_TTL_DAYS=30 npm run cleanup`.
 - **Remote access**: put it behind your own tunnel/reverse proxy (Cloudflare Tunnel, Tailscale). Session cookies are marked `Secure` automatically when served over HTTPS.
 
 ### systemd (Linux, no root)
