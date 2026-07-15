@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "tsx --test tests/*.test.ts",
+    "audit": "npm audit --omit=dev --audit-level=high",
     "cleanup": "node scripts/cleanup.mjs"
   },
   "dependencies": {
