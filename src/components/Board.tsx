@@ -237,8 +237,10 @@ export default function Board({ status }: { status: ItemStatus }) {
               {!item.read_at && status === "inbox" && (
                 <span
                   aria-label={t.unreadDot}
-                  className="mr-1.5 inline-block h-2 w-2 rounded-full bg-[var(--accent)] align-middle"
-                />
+                  className="unread-status mr-1.5 inline-flex align-middle font-mono text-[9px] font-bold uppercase"
+                >
+                  {t.unreadDot}
+                </span>
               )}
               {item.pinned && (
                 <span
