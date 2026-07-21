@@ -1,3 +1,8 @@
+import {
+  categorySeal,
+  defaultCategorySettings,
+  type CategoryPreference,
+} from "../lib/categories";
 import { LOCALE, TYPE_LABELS } from "../lib/i18n";
 import type { ItemType } from "../lib/types";
 
@@ -15,9 +20,20 @@ export function typeLabel(type: ItemType): string {
 
 /** Stamp-seal type badge — the one loud element on each card.
  * Temp items get a dashed border: the stamp isn't "pressed" yet. */
-export function TypeSeal({ type, temp }: { type: ItemType; temp?: boolean }) {
-  const { label, seal } = TYPE_LABELS[type];
-  const color = TYPE_COLORS[type];
+export function TypeSeal({
+  type,
+  temp,
+  category,
+}: {
+  type: ItemType;
+  temp?: boolean;
+  category?: CategoryPreference;
+}) {
+  const preference =
+    category ??
+    defaultCategorySettings().categories.find((entry) => entry.id === type)!;
+  const label = preference.label;
+  const seal = categorySeal(preference);
   return (
     <span
       aria-label={label}
@@ -26,9 +42,11 @@ export function TypeSeal({ type, temp }: { type: ItemType; temp?: boolean }) {
         LOCALE === "ko" ? "text-[15px]" : "font-mono text-[9px] tracking-wide"
       }`}
       style={{
-        color: color.fg,
-        borderColor: color.fg,
-        background: temp ? "transparent" : color.bg,
+        color: preference.color,
+        borderColor: preference.color,
+        background: temp
+          ? "transparent"
+          : `color-mix(in srgb, ${preference.color} 12%, var(--surface))`,
         borderStyle: temp ? "dashed" : "solid",
         opacity: temp ? 0.78 : 1,
       }}

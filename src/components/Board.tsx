@@ -2,7 +2,12 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { relTime, remainTime, t, TYPE_LABELS } from "../lib/i18n";
+import {
+  defaultCategorySettings,
+  type CategoryPreference,
+  type CategorySettings,
+} from "../lib/categories";
+import { relTime, remainTime, t } from "../lib/i18n";
 import type { ItemMeta, ItemStatus, ItemType } from "../lib/types";
 import { useStoredChoice } from "../lib/useStoredChoice";
 import { Brand } from "./Brand";
@@ -13,8 +18,6 @@ const TABS: { href: string; label: string; status: ItemStatus }[] = [
   { href: "/archive", label: t.archive, status: "archived" },
   { href: "/trash", label: t.trash, status: "trash" },
 ];
-
-const TYPE_KEYS = Object.keys(TYPE_LABELS) as ItemType[];
 
 type BoardWidth = "narrow" | "wide" | "full";
 const WIDTH_STORAGE_KEY = "dropboard:board-width";
@@ -65,8 +68,21 @@ async function fetchItems(status: ItemStatus): Promise<ItemMeta[]> {
   return items;
 }
 
+async function fetchCategories(): Promise<CategoryPreference[]> {
+  const response = await fetch("/api/settings/categories", {
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`failed to load categories (${response.status})`);
+  }
+  return ((await response.json()) as CategorySettings).categories;
+}
+
 export default function Board({ status }: { status: ItemStatus }) {
   const [items, setItems] = useState<ItemMeta[] | null>(null);
+  const [categories, setCategories] = useState<CategoryPreference[]>(
+    defaultCategorySettings().categories,
+  );
   const [loadFailed, setLoadFailed] = useState(false);
   const [typeFilter, setTypeFilter] = useState<ItemType | "all">("all");
   const [query, setQuery] = useState("");
@@ -93,10 +109,14 @@ export default function Board({ status }: { status: ItemStatus }) {
 
   useEffect(() => {
     let cancelled = false;
-    fetchItems(status)
-      .then((nextItems) => {
+    Promise.all([
+      fetchItems(status),
+      fetchCategories().catch(() => defaultCategorySettings().categories),
+    ])
+      .then(([nextItems, nextCategories]) => {
         if (!cancelled) {
           setItems(nextItems);
+          setCategories(nextCategories);
           setLoadFailed(false);
         }
       })
@@ -211,6 +231,10 @@ export default function Board({ status }: { status: ItemStatus }) {
   const regular = visible?.filter((i) => !i.expires_at) ?? [];
   const unreadCount =
     status === "inbox" ? (items?.filter((i) => !i.read_at).length ?? 0) : 0;
+  const categoryById = Object.fromEntries(
+    categories.map((category) => [category.id, category]),
+  ) as Record<ItemType, CategoryPreference>;
+  const visibleCategories = categories.filter((category) => !category.hidden);
 
   const card = (item: ItemMeta) => (
     <li key={item.id} className="group">
@@ -225,7 +249,11 @@ export default function Board({ status }: { status: ItemStatus }) {
           href={`/i/${item.id}`}
           className="flex min-w-0 flex-1 items-start gap-3.5 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2"
         >
-          <TypeSeal type={item.type} temp={Boolean(item.expires_at)} />
+          <TypeSeal
+            type={item.type}
+            temp={Boolean(item.expires_at)}
+            category={categoryById[item.type]}
+          />
           <div className="min-w-0 flex-1">
             <h2
               className={`line-clamp-2 text-[15px] leading-snug tracking-[-0.01em] sm:text-base ${
@@ -363,6 +391,14 @@ export default function Board({ status }: { status: ItemStatus }) {
                   {t.unread(unreadCount)}
                 </span>
               )}
+              <Link
+                href="/settings/categories"
+                aria-label={t.categorySettings}
+                title={t.categorySettings}
+                className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--ink)]"
+              >
+                <SettingsIcon />
+              </Link>
               <div
                 className="width-control hidden items-center gap-0.5 rounded-full border border-[var(--line)] p-0.5 sm:flex"
                 role="group"
@@ -439,13 +475,18 @@ export default function Board({ status }: { status: ItemStatus }) {
             >
               {t.all}
             </FilterChip>
-            {TYPE_KEYS.map((k) => (
+            {visibleCategories.map((category) => (
               <FilterChip
-                key={k}
-                active={typeFilter === k}
-                onClick={() => setTypeFilter(typeFilter === k ? "all" : k)}
+                key={category.id}
+                active={typeFilter === category.id}
+                color={category.color}
+                onClick={() =>
+                  setTypeFilter(
+                    typeFilter === category.id ? "all" : category.id,
+                  )
+                }
               >
-                {TYPE_LABELS[k].label}
+                {category.label}
               </FilterChip>
             ))}
           </div>
@@ -513,10 +554,12 @@ function ConfirmBtn({ onClick }: { onClick: () => void }) {
 
 function FilterChip({
   active,
+  color,
   onClick,
   children,
 }: {
   active: boolean;
+  color?: string;
   onClick: () => void;
   children: React.ReactNode;
 }) {
@@ -529,8 +572,34 @@ function FilterChip({
           : "border-[var(--line)] bg-[var(--surface)] text-[var(--muted)] hover:border-[var(--line-strong)] hover:text-[var(--ink)]"
       }`}
     >
+      {color && (
+        <span
+          aria-hidden="true"
+          className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full align-middle"
+          style={{ background: color }}
+        />
+      )}
       {children}
     </button>
+  );
+}
+
+function SettingsIcon() {
+  return (
+    <svg
+      width="17"
+      height="17"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z" />
+    </svg>
   );
 }
 
