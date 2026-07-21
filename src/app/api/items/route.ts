@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isWriteAuthorized } from "../../../lib/auth";
+import { normalizeDocumentKey } from "../../../lib/document-key";
 import { readJsonObject } from "../../../lib/request";
-import { createItem, listItems } from "../../../lib/store";
+import {
+  createOrUpdateItem,
+  listItems,
+  RevisionConflictError,
+} from "../../../lib/store";
 import {
   ITEM_STATUSES,
   ITEM_TYPES,
@@ -18,6 +23,7 @@ const MAX_TAGS = 20;
 const MAX_TAG_LENGTH = 50;
 const MAX_SOURCE_LENGTH = 100;
 const MAX_SUMMARY_LENGTH = 500;
+const MAX_REVISION_NOTE_LENGTH = 300;
 const MAX_QUERY_LENGTH = 200;
 const DEFAULT_PAGE_SIZE = 100;
 const MAX_PAGE_SIZE = 500;
@@ -137,6 +143,52 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     );
   }
+  if (
+    body.document_key !== undefined &&
+    typeof body.document_key !== "string"
+  ) {
+    return NextResponse.json(
+      { error: "document_key must be a string" },
+      { status: 400 },
+    );
+  }
+  const documentKey =
+    typeof body.document_key === "string"
+      ? normalizeDocumentKey(body.document_key)
+      : undefined;
+  if (body.document_key !== undefined && !documentKey) {
+    return NextResponse.json(
+      { error: "document_key must be a stable slug (max 120 chars)" },
+      { status: 400 },
+    );
+  }
+  if (documentKey && ttl !== undefined) {
+    return NextResponse.json(
+      { error: "document_key cannot be combined with ttl_minutes" },
+      { status: 400 },
+    );
+  }
+  if (
+    body.revision_note !== undefined &&
+    (typeof body.revision_note !== "string" ||
+      body.revision_note.length > MAX_REVISION_NOTE_LENGTH)
+  ) {
+    return NextResponse.json(
+      { error: `revision_note must be at most ${MAX_REVISION_NOTE_LENGTH} chars` },
+      { status: 400 },
+    );
+  }
+  if (
+    body.expected_revision !== undefined &&
+    (typeof body.expected_revision !== "number" ||
+      !Number.isInteger(body.expected_revision) ||
+      body.expected_revision < 1)
+  ) {
+    return NextResponse.json(
+      { error: "expected_revision must be a positive integer" },
+      { status: 400 },
+    );
+  }
 
   if (body.project !== undefined && typeof body.project !== "string") {
     return NextResponse.json(
@@ -210,20 +262,43 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const item = await createItem({
-    title,
-    type,
-    content,
-    content_type: contentType,
-    project: project || undefined,
-    folder: folder || undefined,
-    tags: tags
-      .map((tag) => (tag as string).trim())
-      .filter((tag, index, all) => tag && all.indexOf(tag) === index),
-    summary: typeof body.summary === "string" ? body.summary : undefined,
-    source: typeof body.source === "string" ? body.source : undefined,
-    ttl_minutes: ttl as number | undefined,
-  });
-
-  return NextResponse.json({ item, url: `/i/${item.id}` }, { status: 201 });
+  try {
+    const result = await createOrUpdateItem({
+      title,
+      type,
+      update_type: body.type !== undefined ? type : undefined,
+      content,
+      content_type: contentType,
+      project: project || undefined,
+      folder: folder || undefined,
+      tags:
+        body.tags !== undefined
+          ? tags
+              .map((tag) => (tag as string).trim())
+              .filter((tag, index, all) => tag && all.indexOf(tag) === index)
+          : undefined,
+      summary: typeof body.summary === "string" ? body.summary : undefined,
+      source: typeof body.source === "string" ? body.source : undefined,
+      ttl_minutes: ttl as number | undefined,
+      document_key: documentKey ?? undefined,
+      revision_note:
+        typeof body.revision_note === "string" ? body.revision_note : undefined,
+      expected_revision:
+        typeof body.expected_revision === "number"
+          ? body.expected_revision
+          : undefined,
+    });
+    return NextResponse.json(
+      { item: result.item, url: `/i/${result.item.id}`, updated: result.updated },
+      { status: result.updated ? 200 : 201 },
+    );
+  } catch (error) {
+    if (error instanceof RevisionConflictError) {
+      return NextResponse.json(
+        { error: error.message, current_revision: error.currentRevision },
+        { status: 409 },
+      );
+    }
+    throw error;
+  }
 }

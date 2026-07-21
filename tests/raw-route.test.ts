@@ -53,4 +53,29 @@ test("raw artifacts require authorization and receive a restrictive CSP", async 
   assert.match(allowed.headers.get("content-security-policy") ?? "", /connect-src 'none'/);
   assert.match(allowed.headers.get("content-security-policy") ?? "", /sandbox allow-scripts/);
   assert.equal(allowed.headers.get("referrer-policy"), "no-referrer");
+
+  await store.addRevision(item.id, {
+    content: "<!doctype html><p>version two</p>",
+    content_type: "html",
+  });
+  const revisionSig = await session.signRawUrl(
+    process.env.DROPBOARD_SESSION_SECRET!,
+    item.id,
+    exp,
+    1,
+  );
+  const oldVersion = await GET(
+    new NextRequest(
+      `http://localhost/api/items/${item.id}/raw?v=1&e=${exp}&st=${revisionSig}`,
+    ),
+    ctx,
+  );
+  assert.match(await oldVersion.text(), /document.body.textContent='ok'/);
+  const tampered = await GET(
+    new NextRequest(
+      `http://localhost/api/items/${item.id}/raw?v=2&e=${exp}&st=${revisionSig}`,
+    ),
+    ctx,
+  );
+  assert.equal(tampered.status, 401);
 });

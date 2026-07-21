@@ -13,6 +13,10 @@ export interface ItemMeta {
   project: string | null;
   folder: string | null;
   tags: string[];
+  /** Stable user/agent key for repeat publications. Null means create-only. */
+  document_key: string | null;
+  /** Latest immutable content revision. Legacy items are normalized to v1. */
+  revision: number;
   summary: string;
   content_file: string;
   content_type: ContentType;
@@ -35,10 +39,39 @@ export interface CreateItemInput {
   project?: string;
   folder?: string;
   tags?: string[];
+  document_key?: string;
+  revision_note?: string;
+  expected_revision?: number;
   summary?: string;
   content: string;
   content_type?: ContentType;
   source?: string;
   /** set → temp item expiring after this many minutes */
   ttl_minutes?: number;
+}
+
+export interface RevisionMeta {
+  revision: number;
+  title: string;
+  type: ItemType;
+  summary: string;
+  content_file: string;
+  content_type: ContentType;
+  created_at: string;
+  source: string;
+  note: string | null;
+}
+
+export interface CreateRevisionInput {
+  content: string;
+  content_type: ContentType;
+  title?: string;
+  type?: ItemType;
+  summary?: string;
+  source?: string;
+  note?: string;
+  expected_revision?: number;
+  project?: string | null;
+  folder?: string | null;
+  tags?: string[];
 }

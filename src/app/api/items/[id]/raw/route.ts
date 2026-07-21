@@ -7,7 +7,11 @@ import {
   verifyShareSig,
   verifySessionToken,
 } from "../../../../../lib/session";
-import { getItem, readContent } from "../../../../../lib/store";
+import {
+  getItem,
+  readContent,
+  readRevisionContent,
+} from "../../../../../lib/store";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -21,6 +25,14 @@ async function isAuthorized(req: NextRequest, id: string): Promise<boolean> {
   const sp = req.nextUrl.searchParams;
   const sig = sp.get("st");
   const exp = Number(sp.get("e"));
+  const requestedRevision = sp.get("v");
+  const revision = requestedRevision === null ? undefined : Number(requestedRevision);
+  if (
+    requestedRevision !== null &&
+    (!Number.isInteger(revision) || revision! < 1)
+  ) {
+    return false;
+  }
   if (sig) {
     const epRaw = sp.get("ep");
     if (epRaw !== null) {
@@ -33,7 +45,7 @@ async function isAuthorized(req: NextRequest, id: string): Promise<boolean> {
       ) {
         return true;
       }
-    } else if (await verifyRawSig(secret, id, exp, sig)) {
+    } else if (await verifyRawSig(secret, id, exp, sig, revision)) {
       return true;
     }
   }
@@ -136,7 +148,18 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   if (!(await isAuthorized(req, id))) {
     return new Response("unauthorized", { status: 401 });
   }
-  const result = await readContent(id);
+  const revisionParam = req.nextUrl.searchParams.get("v");
+  if (revisionParam !== null && req.nextUrl.searchParams.has("ep")) {
+    return new Response("unauthorized", { status: 401 });
+  }
+  const revision = revisionParam === null ? null : Number(revisionParam);
+  const revisionResult =
+    revision === null ? null : await readRevisionContent(id, revision);
+  const result = revisionResult
+    ? { meta: revisionResult.meta, content: revisionResult.content }
+    : revision === null
+      ? await readContent(id)
+      : null;
   if (!result) return new Response("not found", { status: 404 });
 
   const { meta, content } = result;

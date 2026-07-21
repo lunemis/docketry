@@ -5,15 +5,18 @@ import {
   ITEM_STATUSES,
   ITEM_TYPES,
   type CreateItemInput,
+  type CreateRevisionInput,
   type ItemMeta,
   type ItemStatus,
   type ItemType,
+  type RevisionMeta,
 } from "./types";
 
 const DATA_DIR = process.env.DROPBOARD_DATA_DIR || "./data/items";
 
 const ID_RE = /^\d{8}-\d{6}-[a-z0-9]{4}$/;
 const itemLocks = new Map<string, Promise<void>>();
+const documentKeyLocks = new Map<string, Promise<void>>();
 
 export function isValidId(id: string): boolean {
   return ID_RE.test(id);
@@ -23,8 +26,51 @@ function itemDir(id: string): string {
   return path.join(DATA_DIR, id);
 }
 
+function revisionDir(id: string, revision: number): string {
+  return path.join(
+    itemDir(id),
+    "revisions",
+    String(revision).padStart(6, "0"),
+  );
+}
+
 function now(): string {
   return new Date().toISOString();
+}
+
+function revisionMetaFromItem(
+  item: ItemMeta,
+  revision: number,
+  note: string | null = null,
+): RevisionMeta {
+  return {
+    revision,
+    title: item.title,
+    type: item.type,
+    summary: item.summary,
+    content_file: item.content_file,
+    content_type: item.content_type,
+    created_at: revision === 1 ? item.created_at : item.updated_at,
+    source: item.source,
+    note,
+  };
+}
+
+function isRevisionMeta(value: unknown, revision: number): value is RevisionMeta {
+  if (!value || typeof value !== "object") return false;
+  const meta = value as Record<string, unknown>;
+  const contentType = meta.content_type;
+  return (
+    meta.revision === revision &&
+    typeof meta.title === "string" &&
+    ITEM_TYPES.includes(meta.type as ItemType) &&
+    typeof meta.summary === "string" &&
+    (contentType === "html" || contentType === "markdown") &&
+    meta.content_file === (contentType === "markdown" ? "index.md" : "index.html") &&
+    typeof meta.created_at === "string" &&
+    typeof meta.source === "string" &&
+    (meta.note === null || typeof meta.note === "string")
+  );
 }
 
 function isItemMeta(value: unknown, expectedId: string): boolean {
@@ -45,6 +91,13 @@ function isItemMeta(value: unknown, expectedId: string): boolean {
     (meta.folder === undefined ||
       meta.folder === null ||
       typeof meta.folder === "string") &&
+    (meta.document_key === undefined ||
+      meta.document_key === null ||
+      typeof meta.document_key === "string") &&
+    (meta.revision === undefined ||
+      (typeof meta.revision === "number" &&
+        Number.isInteger(meta.revision) &&
+        meta.revision >= 1)) &&
     Array.isArray(meta.tags) &&
     meta.tags.every((tag) => typeof tag === "string") &&
     typeof meta.summary === "string" &&
@@ -76,6 +129,26 @@ async function withItemLock<T>(id: string, task: () => Promise<T>): Promise<T> {
   }
 }
 
+async function withDocumentKeyLock<T>(
+  key: string,
+  task: () => Promise<T>,
+): Promise<T> {
+  const previous = documentKeyLocks.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const tail = previous.then(() => gate);
+  documentKeyLocks.set(key, tail);
+  await previous;
+  try {
+    return await task();
+  } finally {
+    release();
+    if (documentKeyLocks.get(key) === tail) documentKeyLocks.delete(key);
+  }
+}
+
 async function readMeta(id: string): Promise<ItemMeta | null> {
   try {
     const raw = await fs.readFile(
@@ -87,10 +160,20 @@ async function readMeta(id: string): Promise<ItemMeta | null> {
       console.warn(`[dropboard] ignoring invalid metadata for item ${id}`);
       return null;
     }
-    const legacyMeta = parsed as Omit<ItemMeta, "folder"> & {
+    const legacyMeta = parsed as Omit<
+      ItemMeta,
+      "folder" | "document_key" | "revision"
+    > & {
       folder?: string | null;
+      document_key?: string | null;
+      revision?: number;
     };
-    return { ...legacyMeta, folder: legacyMeta.folder ?? null };
+    return {
+      ...legacyMeta,
+      folder: legacyMeta.folder ?? null,
+      document_key: legacyMeta.document_key ?? null,
+      revision: legacyMeta.revision ?? 1,
+    };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
       console.warn(
@@ -161,7 +244,7 @@ export async function listItems(filter: ListFilter): Promise<ItemMeta[]> {
   out.sort(
     (a, b) =>
       Number(b.pinned) - Number(a.pinned) ||
-      b.created_at.localeCompare(a.created_at),
+      b.updated_at.localeCompare(a.updated_at),
   );
   return out;
 }
@@ -209,6 +292,8 @@ export async function createItem(input: CreateItemInput): Promise<ItemMeta> {
     project: input.project ?? null,
     folder: input.folder ?? null,
     tags: input.tags ?? [],
+    document_key: input.document_key ?? null,
+    revision: 1,
     summary: input.summary ?? "",
     content_file: contentFile,
     content_type: contentType,
@@ -286,6 +371,219 @@ export async function updateItem(
   });
 }
 
+export class RevisionConflictError extends Error {
+  constructor(public readonly currentRevision: number) {
+    super(`revision conflict; current revision is ${currentRevision}`);
+  }
+}
+
+async function writeRevisionDirectory(
+  id: string,
+  meta: RevisionMeta,
+  content?: string,
+): Promise<void> {
+  const revisionsDir = path.join(itemDir(id), "revisions");
+  await fs.mkdir(revisionsDir, { recursive: true });
+  const destination = revisionDir(id, meta.revision);
+  const temporary = path.join(
+    revisionsDir,
+    `.${String(meta.revision).padStart(6, "0")}-${randomUUID()}.tmp`,
+  );
+  await fs.mkdir(temporary);
+  try {
+    await fs.writeFile(
+      path.join(temporary, "meta.json"),
+      JSON.stringify(meta, null, 2) + "\n",
+      "utf8",
+    );
+    if (content !== undefined) {
+      await fs.writeFile(path.join(temporary, meta.content_file), content, "utf8");
+    }
+    await fs.rename(temporary, destination);
+  } catch (error) {
+    await fs.rm(temporary, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+async function ensureInitialRevision(item: ItemMeta): Promise<void> {
+  try {
+    await fs.access(path.join(revisionDir(item.id, 1), "meta.json"));
+    return;
+  } catch {
+    // Legacy and newly created items keep v1 content at the item root. Snapshot
+    // only its metadata before the mutable item record advances to v2.
+  }
+  try {
+    await writeRevisionDirectory(item.id, revisionMetaFromItem(item, 1));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+  }
+}
+
+async function readStoredRevisionMeta(
+  id: string,
+  revision: number,
+): Promise<RevisionMeta | null> {
+  try {
+    const parsed: unknown = JSON.parse(
+      await fs.readFile(path.join(revisionDir(id, revision), "meta.json"), "utf8"),
+    );
+    return isRevisionMeta(parsed, revision) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function addRevision(
+  id: string,
+  input: CreateRevisionInput,
+): Promise<ItemMeta | null> {
+  if (!isValidId(id)) return null;
+  return withItemLock(id, async () => {
+    const item = await getItem(id);
+    if (!item) return null;
+    if (
+      input.expected_revision !== undefined &&
+      input.expected_revision !== item.revision
+    ) {
+      throw new RevisionConflictError(item.revision);
+    }
+
+    await ensureInitialRevision(item);
+    const nextRevision = item.revision + 1;
+    const contentType = input.content_type;
+    const contentFile = contentType === "markdown" ? "index.md" : "index.html";
+    const timestamp = now();
+    const revisionMeta: RevisionMeta = {
+      revision: nextRevision,
+      title: input.title ?? item.title,
+      type: input.type ?? item.type,
+      summary: input.summary ?? item.summary,
+      content_file: contentFile,
+      content_type: contentType,
+      created_at: timestamp,
+      source: input.source ?? "unknown",
+      note: input.note?.trim() || null,
+    };
+
+    await writeRevisionDirectory(id, revisionMeta, input.content);
+    const previous = { ...item };
+    item.revision = nextRevision;
+    item.title = revisionMeta.title;
+    item.type = revisionMeta.type;
+    item.summary = revisionMeta.summary;
+    item.content_file = revisionMeta.content_file;
+    item.content_type = revisionMeta.content_type;
+    item.source = revisionMeta.source;
+    item.status = "inbox";
+    item.read_at = null;
+    item.trashed_at = null;
+    item.expires_at = null;
+    item.updated_at = timestamp;
+    if (input.project !== undefined) item.project = input.project;
+    if (input.folder !== undefined) item.folder = input.folder;
+    if (input.tags !== undefined) item.tags = [...input.tags];
+
+    try {
+      await writeMeta(item);
+      return item;
+    } catch (error) {
+      Object.assign(item, previous);
+      await fs.rm(revisionDir(id, nextRevision), { recursive: true, force: true });
+      throw error;
+    }
+  });
+}
+
+export async function listRevisions(id: string): Promise<RevisionMeta[] | null> {
+  const item = await getItem(id);
+  if (!item) return null;
+  const revisions: RevisionMeta[] = [];
+  for (let revision = item.revision; revision >= 1; revision--) {
+    const stored = await readStoredRevisionMeta(id, revision);
+    if (stored) {
+      revisions.push(stored);
+    } else if (revision === 1) {
+      revisions.push(revisionMetaFromItem(item, 1));
+    }
+  }
+  return revisions;
+}
+
+export async function readRevisionContent(
+  id: string,
+  revision: number,
+): Promise<{ meta: RevisionMeta; item: ItemMeta; content: string } | null> {
+  const item = await getItem(id);
+  if (!item || revision < 1 || revision > item.revision) return null;
+  const meta =
+    (await readStoredRevisionMeta(id, revision)) ??
+    (revision === 1 ? revisionMetaFromItem(item, 1) : null);
+  if (!meta) return null;
+  const contentPath =
+    revision === 1
+      ? path.join(itemDir(id), meta.content_file)
+      : path.join(revisionDir(id, revision), meta.content_file);
+  try {
+    return { meta, item, content: await fs.readFile(contentPath, "utf8") };
+  } catch {
+    return null;
+  }
+}
+
+export async function restoreRevision(
+  id: string,
+  revision: number,
+  source = "dropboard-ui",
+): Promise<ItemMeta | null> {
+  const target = await readRevisionContent(id, revision);
+  if (!target) return null;
+  return addRevision(id, {
+    content: target.content,
+    content_type: target.meta.content_type,
+    title: target.meta.title,
+    type: target.meta.type,
+    summary: target.meta.summary,
+    source,
+    note: `Restored from v${revision}`,
+  });
+}
+
+export async function findItemByDocumentKey(
+  documentKey: string,
+): Promise<ItemMeta | null> {
+  const items = await listItems({});
+  return items.find((item) => item.document_key === documentKey) ?? null;
+}
+
+export async function createOrUpdateItem(
+  input: CreateItemInput & { update_type?: ItemType },
+): Promise<{ item: ItemMeta; updated: boolean }> {
+  if (!input.document_key) {
+    return { item: await createItem(input), updated: false };
+  }
+  return withDocumentKeyLock(input.document_key, async () => {
+    const existing = await findItemByDocumentKey(input.document_key!);
+    if (!existing) return { item: await createItem(input), updated: false };
+    const item = await addRevision(existing.id, {
+      title: input.title,
+      type: input.update_type,
+      content: input.content,
+      content_type: input.content_type ?? "html",
+      summary: input.summary,
+      source: input.source,
+      note: input.revision_note,
+      expected_revision: input.expected_revision,
+      project: input.project,
+      folder: input.folder,
+      tags: input.tags,
+    });
+    if (!item) throw new Error("document key target disappeared during update");
+    return { item, updated: true };
+  });
+}
+
 /** Invalidate all previously issued public share links for this item. */
 export async function revokeShares(id: string): Promise<ItemMeta | null> {
   if (!isValidId(id)) return null;
@@ -354,13 +652,6 @@ export async function readContent(
 ): Promise<{ meta: ItemMeta; content: string } | null> {
   const meta = await getItem(id);
   if (!meta) return null;
-  try {
-    const content = await fs.readFile(
-      path.join(itemDir(id), meta.content_file),
-      "utf8",
-    );
-    return { meta, content };
-  } catch {
-    return null;
-  }
+  const revision = await readRevisionContent(id, meta.revision);
+  return revision ? { meta, content: revision.content } : null;
 }

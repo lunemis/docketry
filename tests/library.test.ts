@@ -20,6 +20,8 @@ function item(
     project,
     folder,
     tags: [],
+    document_key: null,
+    revision: 1,
     summary: "",
     content_file: "index.html",
     content_type: "html",

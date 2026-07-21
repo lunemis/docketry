@@ -53,8 +53,9 @@ export async function signRawUrl(
   secret: string,
   id: string,
   exp: number,
+  revision?: number,
 ): Promise<string> {
-  return hmacHex(secret, `raw.${id}.${exp}`);
+  return hmacHex(secret, `raw.${id}.${revision ?? "latest"}.${exp}`);
 }
 
 export async function verifyRawSig(
@@ -62,9 +63,10 @@ export async function verifyRawSig(
   id: string,
   exp: number,
   sig: string,
+  revision?: number,
 ): Promise<boolean> {
   if (!Number.isFinite(exp) || exp < Date.now()) return false;
-  return timingEq(sig, await signRawUrl(secret, id, exp));
+  return timingEq(sig, await signRawUrl(secret, id, exp, revision));
 }
 
 /* Public share links — unlike /raw's per-view signature, these embed an

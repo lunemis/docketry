@@ -77,3 +77,28 @@ test("list API returns bounded pagination metadata", async () => {
   assert.ok(body.total >= 3);
   assert.equal(body.has_more, true);
 });
+
+test("a stable document key updates instead of duplicating an item", async () => {
+  const first = await POST(
+    publishRequest(true, {
+      title: "Living document",
+      document_key: "dropboard/living-document",
+      tags: ["living"],
+    }),
+  );
+  assert.equal(first.status, 201);
+  const firstBody = await first.json();
+  const second = await POST(
+    publishRequest(true, {
+      title: "Living document updated",
+      document_key: "DROPBOARD/living-document",
+      content: "# Version two",
+    }),
+  );
+  assert.equal(second.status, 200);
+  const secondBody = await second.json();
+  assert.equal(secondBody.updated, true);
+  assert.equal(secondBody.item.id, firstBody.item.id);
+  assert.equal(secondBody.item.revision, 2);
+  assert.deepEqual(secondBody.item.tags, ["living"]);
+});
