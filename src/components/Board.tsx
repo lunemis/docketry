@@ -16,6 +16,11 @@ import type { ItemMeta, ItemStatus, ItemType } from "../lib/types";
 import { useStoredChoice } from "../lib/useStoredChoice";
 import { Brand } from "./Brand";
 import { LibraryNavigator } from "./LibraryNavigator";
+import {
+  FolderIcon,
+  OrganizerDialog,
+  type OrganizationValues,
+} from "./OrganizerDialog";
 import { TypeSeal } from "./TypeSeal";
 
 const TABS: { href: string; label: string; status: ItemStatus }[] = [
@@ -95,6 +100,7 @@ export default function Board({ status }: { status: ItemStatus }) {
   const [librarySelection, setLibrarySelection] = useState("all");
   const [toast, setToast] = useState<Toast | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [organizingItem, setOrganizingItem] = useState<ItemMeta | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [now, setNow] = useState(0);
@@ -227,6 +233,27 @@ export default function Board({ status }: { status: ItemStatus }) {
     [confirmingId, load, showToast],
   );
 
+  const saveOrganization = async (values: OrganizationValues) => {
+    if (!organizingItem) return false;
+    try {
+      const response = await fetch(`/api/items/${organizingItem.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+      if (!response.ok) throw new Error(`save failed (${response.status})`);
+      const { item } = (await response.json()) as { item: ItemMeta };
+      setItems((current) =>
+        current?.map((entry) => (entry.id === item.id ? item : entry)) ?? null,
+      );
+      showToast({ msg: t.organizationSaved });
+      return true;
+    } catch {
+      showToast({ msg: t.toastFailed });
+      return false;
+    }
+  };
+
   const visible =
     items?.filter(
       (i) =>
@@ -354,6 +381,12 @@ export default function Board({ status }: { status: ItemStatus }) {
             </>
           ) : status === "archived" ? (
             <>
+              <IconBtn
+                label={t.organize}
+                onClick={() => setOrganizingItem(item)}
+              >
+                <FolderIcon />
+              </IconBtn>
               <IconBtn
                 label={t.actionToInbox}
                 onClick={() => move(item, "inbox", t.toastToInbox)}
@@ -565,6 +598,13 @@ export default function Board({ status }: { status: ItemStatus }) {
             )}
           </div>
         </div>
+      )}
+      {organizingItem && (
+        <OrganizerDialog
+          item={organizingItem}
+          onClose={() => setOrganizingItem(null)}
+          onSave={saveOrganization}
+        />
       )}
     </div>
   );

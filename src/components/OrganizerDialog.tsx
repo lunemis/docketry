@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { t } from "../lib/i18n";
 import type { ItemMeta } from "../lib/types";
 
@@ -24,6 +24,37 @@ export function OrganizerDialog({
   const [tags, setTags] = useState(item.tags);
   const [tagInput, setTagInput] = useState("");
   const [saving, setSaving] = useState(false);
+  const [suggestions, setSuggestions] = useState({
+    projects: [] as string[],
+    folders: [] as string[],
+    tags: [] as string[],
+  });
+  const suggestionId = useId().replaceAll(":", "");
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/items?limit=500", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`load failed (${response.status})`);
+        return (await response.json()) as { items?: ItemMeta[] };
+      })
+      .then(({ items = [] }) => {
+        if (cancelled) return;
+        const unique = (values: Array<string | null | undefined>) =>
+          [...new Set(values.filter((value): value is string => Boolean(value)))].sort(
+            (a, b) => a.localeCompare(b),
+          );
+        setSuggestions({
+          projects: unique(items.map((entry) => entry.project)),
+          folders: unique(items.map((entry) => entry.folder)),
+          tags: unique(items.flatMap((entry) => entry.tags)),
+        });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const addPendingTag = () => {
     const next = tagInput.trim().replace(/^#/, "");
@@ -87,18 +118,30 @@ export function OrganizerDialog({
               value={project}
               maxLength={100}
               placeholder={t.projectPlaceholder}
+              list={`${suggestionId}-projects`}
               onChange={(event) => setProject(event.target.value)}
               className="organizer-input"
             />
+            <datalist id={`${suggestionId}-projects`}>
+              {suggestions.projects.map((value) => (
+                <option key={value} value={value} />
+              ))}
+            </datalist>
           </OrganizerField>
           <OrganizerField label={t.folder}>
             <input
               value={folder}
               maxLength={240}
               placeholder={t.folderPlaceholder}
+              list={`${suggestionId}-folders`}
               onChange={(event) => setFolder(event.target.value)}
               className="organizer-input"
             />
+            <datalist id={`${suggestionId}-folders`}>
+              {suggestions.folders.map((value) => (
+                <option key={value} value={value} />
+              ))}
+            </datalist>
           </OrganizerField>
         </div>
 
@@ -131,6 +174,7 @@ export function OrganizerDialog({
               value={tagInput}
               maxLength={50}
               placeholder={tags.length === 0 ? t.tagPlaceholder : ""}
+              list={`${suggestionId}-tags`}
               onChange={(event) => setTagInput(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === ",") {
@@ -143,6 +187,11 @@ export function OrganizerDialog({
               }}
               className="min-w-36 flex-1 bg-transparent px-1 py-1 text-sm outline-none placeholder:text-[var(--muted-soft)]"
             />
+            <datalist id={`${suggestionId}-tags`}>
+              {suggestions.tags.map((value) => (
+                <option key={value} value={value} />
+              ))}
+            </datalist>
           </div>
         </div>
 
