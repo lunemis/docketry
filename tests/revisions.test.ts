@@ -41,6 +41,7 @@ test("adds immutable revisions and brings an archived document back unread", asy
   assert.equal(updated?.revision, 2);
   assert.equal(updated?.status, "inbox");
   assert.equal(updated?.read_at, null);
+  assert.equal(updated?.share_epoch, 1);
   assert.equal(updated?.project, "Dropboard");
   assert.deepEqual(updated?.tags, ["roadmap"]);
   assert.equal((await store.readContent(created.id))?.content, "# Version two");

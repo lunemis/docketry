@@ -480,6 +480,7 @@ export async function addRevision(
     item.read_at = null;
     item.trashed_at = null;
     item.expires_at = null;
+    item.share_epoch = (item.share_epoch ?? 0) + 1;
     item.updated_at = timestamp;
     if (input.project !== undefined) item.project = input.project;
     if (input.folder !== undefined) item.folder = input.folder;
