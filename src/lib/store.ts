@@ -27,11 +27,7 @@ function itemDir(id: string): string {
 }
 
 function revisionDir(id: string, revision: number): string {
-  return path.join(
-    itemDir(id),
-    "revisions",
-    String(revision).padStart(6, "0"),
-  );
+  return path.join(itemDir(id), "revisions", String(revision).padStart(6, "0"));
 }
 
 function now(): string {
@@ -56,7 +52,10 @@ function revisionMetaFromItem(
   };
 }
 
-function isRevisionMeta(value: unknown, revision: number): value is RevisionMeta {
+function isRevisionMeta(
+  value: unknown,
+  revision: number,
+): value is RevisionMeta {
   if (!value || typeof value !== "object") return false;
   const meta = value as Record<string, unknown>;
   const contentType = meta.content_type;
@@ -66,7 +65,8 @@ function isRevisionMeta(value: unknown, revision: number): value is RevisionMeta
     ITEM_TYPES.includes(meta.type as ItemType) &&
     typeof meta.summary === "string" &&
     (contentType === "html" || contentType === "markdown") &&
-    meta.content_file === (contentType === "markdown" ? "index.md" : "index.html") &&
+    meta.content_file ===
+      (contentType === "markdown" ? "index.md" : "index.html") &&
     typeof meta.created_at === "string" &&
     typeof meta.source === "string" &&
     (meta.note === null || typeof meta.note === "string")
@@ -129,6 +129,15 @@ async function withItemLock<T>(id: string, task: () => Promise<T>): Promise<T> {
   }
 }
 
+async function withItemLocks<T>(
+  ids: string[],
+  task: () => Promise<T>,
+  index = 0,
+): Promise<T> {
+  if (index >= ids.length) return task();
+  return withItemLock(ids[index], () => withItemLocks(ids, task, index + 1));
+}
+
 async function withDocumentKeyLock<T>(
   key: string,
   task: () => Promise<T>,
@@ -151,10 +160,7 @@ async function withDocumentKeyLock<T>(
 
 async function readMeta(id: string): Promise<ItemMeta | null> {
   try {
-    const raw = await fs.readFile(
-      path.join(itemDir(id), "meta.json"),
-      "utf8",
-    );
+    const raw = await fs.readFile(path.join(itemDir(id), "meta.json"), "utf8");
     const parsed: unknown = JSON.parse(raw);
     if (!isItemMeta(parsed, id)) {
       console.warn(`[dropboard] ignoring invalid metadata for item ${id}`);
@@ -371,6 +377,76 @@ export async function updateItem(
   });
 }
 
+export type BulkOrganizationResult =
+  | { ok: true; items: ItemMeta[] }
+  | {
+      ok: false;
+      reason: "not_found" | "not_archived";
+      itemIds: string[];
+    };
+
+export async function organizeItems(
+  itemIds: string[],
+  organization: { project: string | null; folder: string | null },
+): Promise<BulkOrganizationResult> {
+  const ids = [...new Set(itemIds)].sort();
+  if (ids.length === 0 || ids.some((id) => !isValidId(id))) {
+    return { ok: false, reason: "not_found", itemIds: ids };
+  }
+
+  return withItemLocks(ids, async () => {
+    const originals: ItemMeta[] = [];
+    const missing: string[] = [];
+    for (const id of ids) {
+      const item = await readMeta(id);
+      if (!item || isExpired(item)) missing.push(id);
+      else originals.push(item);
+    }
+    if (missing.length > 0) {
+      return { ok: false, reason: "not_found", itemIds: missing };
+    }
+
+    const notArchived = originals
+      .filter((item) => item.status !== "archived")
+      .map((item) => item.id);
+    if (notArchived.length > 0) {
+      return {
+        ok: false,
+        reason: "not_archived",
+        itemIds: notArchived,
+      };
+    }
+
+    const timestamp = now();
+    const updated = originals.map((item) => ({
+      ...item,
+      project: organization.project,
+      folder: organization.folder,
+      updated_at: timestamp,
+    }));
+    const written: ItemMeta[] = [];
+    try {
+      for (let index = 0; index < updated.length; index++) {
+        await writeMeta(updated[index]);
+        written.push(originals[index]);
+      }
+      return { ok: true, items: updated };
+    } catch (error) {
+      for (const original of written.reverse()) {
+        try {
+          await writeMeta(original);
+        } catch (rollbackError) {
+          console.error(
+            `[dropboard] failed to roll back bulk organization for ${original.id}:`,
+            rollbackError,
+          );
+        }
+      }
+      throw error;
+    }
+  });
+}
+
 export class RevisionConflictError extends Error {
   constructor(public readonly currentRevision: number) {
     super(`revision conflict; current revision is ${currentRevision}`);
@@ -403,7 +479,11 @@ async function writeRevisionDirectory(
       "utf8",
     );
     if (content !== undefined) {
-      await fs.writeFile(path.join(temporary, meta.content_file), content, "utf8");
+      await fs.writeFile(
+        path.join(temporary, meta.content_file),
+        content,
+        "utf8",
+      );
     }
     await fs.rename(temporary, destination);
   } catch (error) {
@@ -433,7 +513,10 @@ async function readStoredRevisionMeta(
 ): Promise<RevisionMeta | null> {
   try {
     const parsed: unknown = JSON.parse(
-      await fs.readFile(path.join(revisionDir(id, revision), "meta.json"), "utf8"),
+      await fs.readFile(
+        path.join(revisionDir(id, revision), "meta.json"),
+        "utf8",
+      ),
     );
     return isRevisionMeta(parsed, revision) ? parsed : null;
   } catch {
@@ -500,13 +583,18 @@ export async function addRevision(
       return item;
     } catch (error) {
       Object.assign(item, previous);
-      await fs.rm(revisionDir(id, nextRevision), { recursive: true, force: true });
+      await fs.rm(revisionDir(id, nextRevision), {
+        recursive: true,
+        force: true,
+      });
       throw error;
     }
   });
 }
 
-export async function listRevisions(id: string): Promise<RevisionMeta[] | null> {
+export async function listRevisions(
+  id: string,
+): Promise<RevisionMeta[] | null> {
   const item = await getItem(id);
   if (!item) return null;
   const revisions: RevisionMeta[] = [];
