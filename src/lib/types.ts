@@ -74,4 +74,6 @@ export interface CreateRevisionInput {
   project?: string | null;
   folder?: string | null;
   tags?: string[];
+  /** Internal escape hatch for the explicit restore workflow only. */
+  allow_trashed?: boolean;
 }

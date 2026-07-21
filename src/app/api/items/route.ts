@@ -6,6 +6,7 @@ import {
   createOrUpdateItem,
   listItems,
   RevisionConflictError,
+  TrashedDocumentError,
 } from "../../../lib/store";
 import {
   ITEM_STATUSES,
@@ -296,6 +297,12 @@ export async function POST(req: NextRequest) {
     if (error instanceof RevisionConflictError) {
       return NextResponse.json(
         { error: error.message, current_revision: error.currentRevision },
+        { status: 409 },
+      );
+    }
+    if (error instanceof TrashedDocumentError) {
+      return NextResponse.json(
+        { error: error.message, item_id: error.itemId },
         { status: 409 },
       );
     }

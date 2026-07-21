@@ -116,3 +116,32 @@ test("expected revision prevents stale writers from silently overwriting", async
       error instanceof store.RevisionConflictError && error.currentRevision === 2,
   );
 });
+
+test("trash blocks implicit updates but explicit restore still works", async () => {
+  const created = await store.createItem({
+    title: "Deleted spec",
+    type: "review",
+    content: "original",
+    document_key: "test/deleted-spec",
+  });
+  await store.updateItem(created.id, { status: "trash" });
+  await assert.rejects(
+    store.addRevision(created.id, {
+      content: "agent update",
+      content_type: "html",
+    }),
+    (error: unknown) => error instanceof store.TrashedDocumentError,
+  );
+  await assert.rejects(
+    store.createOrUpdateItem({
+      title: "Deleted spec",
+      type: "review",
+      content: "keyed update",
+      document_key: "test/deleted-spec",
+    }),
+    (error: unknown) => error instanceof store.TrashedDocumentError,
+  );
+  const restored = await store.restoreRevision(created.id, 1, "test");
+  assert.equal(restored?.status, "inbox");
+  assert.equal(restored?.revision, 2);
+});

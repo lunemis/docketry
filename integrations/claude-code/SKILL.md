@@ -62,6 +62,8 @@ press Keep to retain one. When unsure, publish as keep — deleting is easy.
 - `--key`: only for clearly recurring documents such as a roadmap, spec, or weekly
   report. Never infer a key from a vaguely similar title; when unsure, publish a new item.
 - `--note`: short description of what changed in this revision.
+- If an update returns `409` because the document is in Trash, do not recreate or
+  restore it automatically. Report the conflict and let the user choose.
 
 ## HTML artifact quality rules
 

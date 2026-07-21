@@ -377,6 +377,12 @@ export class RevisionConflictError extends Error {
   }
 }
 
+export class TrashedDocumentError extends Error {
+  constructor(public readonly itemId: string) {
+    super("document is in trash; restore it before updating");
+  }
+}
+
 async function writeRevisionDirectory(
   id: string,
   meta: RevisionMeta,
@@ -443,6 +449,9 @@ export async function addRevision(
   return withItemLock(id, async () => {
     const item = await getItem(id);
     if (!item) return null;
+    if (item.status === "trash" && input.allow_trashed !== true) {
+      throw new TrashedDocumentError(item.id);
+    }
     if (
       input.expected_revision !== undefined &&
       input.expected_revision !== item.revision
@@ -548,6 +557,7 @@ export async function restoreRevision(
     summary: target.meta.summary,
     source,
     note: `Restored from v${revision}`,
+    allow_trashed: true,
   });
 }
 

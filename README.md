@@ -134,7 +134,9 @@ is never exposed through an older link without an explicit re-share.
 
 Use `--key` only when identity is explicit; dropboard never merges documents by
 fuzzy title. API clients can send `expected_revision` and receive `409 Conflict`
-instead of silently overwriting a newer update.
+instead of silently overwriting a newer update. A document in Trash also returns
+`409 Conflict`; restore it explicitly before updating so agents cannot silently
+undo the user's deletion intent.
 
 ### Organizing the library
 

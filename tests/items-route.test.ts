@@ -101,4 +101,15 @@ test("a stable document key updates instead of duplicating an item", async () =>
   assert.equal(secondBody.item.id, firstBody.item.id);
   assert.equal(secondBody.item.revision, 2);
   assert.deepEqual(secondBody.item.tags, ["living"]);
+
+  const store = await import("../src/lib/store");
+  await store.updateItem(firstBody.item.id, { status: "trash" });
+  const blocked = await POST(
+    publishRequest(true, {
+      document_key: "dropboard/living-document",
+      content: "# Must not resurrect",
+    }),
+  );
+  assert.equal(blocked.status, 409);
+  assert.equal((await blocked.json()).item_id, firstBody.item.id);
 });

@@ -5,6 +5,7 @@ import {
   addRevision,
   listRevisions,
   RevisionConflictError,
+  TrashedDocumentError,
 } from "../../../../../lib/store";
 import {
   ITEM_TYPES,
@@ -152,6 +153,12 @@ export async function POST(request: Request, ctx: Ctx) {
     if (error instanceof RevisionConflictError) {
       return NextResponse.json(
         { error: error.message, current_revision: error.currentRevision },
+        { status: 409 },
+      );
+    }
+    if (error instanceof TrashedDocumentError) {
+      return NextResponse.json(
+        { error: error.message, item_id: error.itemId },
         { status: 409 },
       );
     }

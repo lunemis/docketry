@@ -9,12 +9,13 @@ let itemId: string;
 let GET: typeof import("../src/app/api/items/[id]/revisions/route").GET;
 let POST: typeof import("../src/app/api/items/[id]/revisions/route").POST;
 let RESTORE: typeof import("../src/app/api/items/[id]/revisions/[revision]/restore/route").POST;
+let store: typeof import("../src/lib/store");
 
 before(async () => {
   dataDir = await mkdtemp(path.join(os.tmpdir(), "dropboard-revision-route-"));
   process.env.DROPBOARD_DATA_DIR = dataDir;
   process.env.DROPBOARD_SESSION_SECRET = "revision-route-secret-long-enough";
-  const store = await import("../src/lib/store");
+  store = await import("../src/lib/store");
   itemId = (
     await store.createItem({
       title: "Versioned API item",
@@ -82,4 +83,29 @@ test("restore API creates another revision", async () => {
   const body = await response.json();
   assert.equal(body.item.revision, 3);
   assert.equal(body.restored_from, 1);
+});
+
+test("revision API blocks trash updates while the restore endpoint is explicit", async () => {
+  const trashed = await store.createItem({
+    title: "Trashed API item",
+    type: "info",
+    content: "original",
+  });
+  await store.updateItem(trashed.id, { status: "trash" });
+  const blocked = await POST(
+    new Request(`http://localhost/api/items/${trashed.id}/revisions`, {
+      method: "POST",
+      body: JSON.stringify({ content: "update", content_type: "html" }),
+    }),
+    { params: Promise.resolve({ id: trashed.id }) },
+  );
+  assert.equal(blocked.status, 409);
+  assert.equal((await blocked.json()).item_id, trashed.id);
+
+  const restored = await RESTORE(
+    new Request("http://localhost", { method: "POST" }),
+    { params: Promise.resolve({ id: trashed.id, revision: "1" }) },
+  );
+  assert.equal(restored.status, 200);
+  assert.equal((await restored.json()).item.status, "inbox");
 });
