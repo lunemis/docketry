@@ -7,22 +7,18 @@ import {
   type CategoryPreference,
   type CategorySettings,
 } from "../lib/categories";
-import { relTime, remainTime, t } from "../lib/i18n";
+import { t } from "../lib/i18n";
 import { buildLibraryIndex, matchesLibrarySelection } from "../lib/library";
 import type { ItemMeta, ItemStatus, ItemType } from "../lib/types";
 import { useStoredChoice } from "../lib/useStoredChoice";
+import { ArtifactCard } from "./ArtifactCard";
 import { Brand } from "./Brand";
 import {
   BulkOrganizerDialog,
   type BulkOrganizationValues,
 } from "./BulkOrganizerDialog";
 import { LibraryNavigator } from "./LibraryNavigator";
-import {
-  FolderIcon,
-  OrganizerDialog,
-  type OrganizationValues,
-} from "./OrganizerDialog";
-import { TypeSeal } from "./TypeSeal";
+import { OrganizerDialog, type OrganizationValues } from "./OrganizerDialog";
 
 const TABS: { href: string; label: string; status: ItemStatus }[] = [
   { href: "/", label: t.inbox, status: "inbox" },
@@ -327,165 +323,20 @@ export default function Board({ status }: { status: ItemStatus }) {
     setSelectedIds(new Set(regular.map((item) => item.id)));
 
   const card = (item: ItemMeta) => (
-    <li key={item.id} className="group">
-      <div
-        className={`artifact-card flex items-stretch gap-1 rounded-2xl border p-3.5 sm:p-4 ${
-          selectedIds.has(item.id)
-            ? "border-[var(--accent)] bg-[var(--accent-soft)]"
-            : !item.read_at && status === "inbox"
-              ? "artifact-card--unread"
-              : "border-[var(--line)]"
-        }`}
-      >
-        {status === "archived" && selecting && (
-          <label className="flex shrink-0 items-center px-1">
-            <input
-              type="checkbox"
-              checked={selectedIds.has(item.id)}
-              onChange={() => toggleSelected(item.id)}
-              aria-label={t.selectItem(item.title)}
-              className="h-5 w-5 rounded border-[var(--line)] accent-[var(--accent)]"
-            />
-          </label>
-        )}
-        <Link
-          href={`/i/${item.id}`}
-          className="flex min-w-0 flex-1 items-start gap-3.5 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2"
-        >
-          <TypeSeal
-            type={item.type}
-            temp={Boolean(item.expires_at)}
-            category={categoryById[item.type]}
-          />
-          <div className="min-w-0 flex-1">
-            <h2
-              className={`line-clamp-2 text-[15px] leading-snug tracking-[-0.01em] sm:text-base ${
-                !item.read_at && status === "inbox"
-                  ? "font-semibold"
-                  : "font-medium"
-              }`}
-            >
-              {!item.read_at && status === "inbox" && (
-                <span
-                  aria-label={t.unreadDot}
-                  className="unread-status mr-1.5 inline-flex align-middle font-mono text-[9px] font-bold uppercase"
-                >
-                  {t.unreadDot}
-                </span>
-              )}
-              {item.pinned && (
-                <span
-                  aria-label={t.pin}
-                  className="mr-1 inline-flex text-[var(--accent)]"
-                >
-                  <PinIcon />
-                </span>
-              )}
-              {item.title}
-            </h2>
-            {item.summary && (
-              <p className="mt-1 line-clamp-2 max-w-3xl text-[13px] leading-relaxed text-[var(--muted)] sm:text-sm">
-                {item.summary}
-              </p>
-            )}
-            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10px] text-[var(--muted)] sm:text-[11px]">
-              {item.expires_at && (
-                <span className="metadata-chip metadata-chip--accent">
-                  {remainTime(item.expires_at)}
-                </span>
-              )}
-              {item.project && (
-                <span className="metadata-chip">{item.project}</span>
-              )}
-              {item.folder && (
-                <span className="metadata-chip">
-                  {item.folder.replaceAll("/", " › ")}
-                </span>
-              )}
-              {item.revision > 1 && (
-                <span className="metadata-chip border-[color-mix(in_srgb,var(--violet)_24%,transparent)] bg-[var(--violet-soft)] font-semibold text-[var(--violet)]">
-                  v{item.revision}
-                </span>
-              )}
-              {item.tags.slice(0, 3).map((tag) => (
-                <span key={tag} className="text-[var(--muted-soft)]">
-                  #{tag}
-                </span>
-              ))}
-              <time dateTime={item.created_at}>{relTime(item.created_at)}</time>
-            </div>
-          </div>
-        </Link>
-        <div className="card-actions flex flex-col justify-center">
-          {item.expires_at ? (
-            <>
-              <IconBtn label={t.actionKeep} onClick={() => keep(item)}>
-                <KeepIcon />
-              </IconBtn>
-              {confirmingId === item.id ? (
-                <ConfirmBtn onClick={() => destroy(item)} />
-              ) : (
-                <IconBtn label={t.actionDelete} onClick={() => destroy(item)}>
-                  <TrashIcon />
-                </IconBtn>
-              )}
-            </>
-          ) : status === "inbox" ? (
-            <>
-              <IconBtn
-                label={t.actionArchive}
-                onClick={() => move(item, "archived", t.toastArchived)}
-              >
-                <ArchiveIcon />
-              </IconBtn>
-              <IconBtn
-                label={t.actionToTrash}
-                onClick={() => move(item, "trash", t.toastTrashed)}
-              >
-                <TrashIcon />
-              </IconBtn>
-            </>
-          ) : status === "archived" ? (
-            <>
-              <IconBtn
-                label={t.organize}
-                onClick={() => setOrganizingItem(item)}
-              >
-                <FolderIcon />
-              </IconBtn>
-              <IconBtn
-                label={t.actionToInbox}
-                onClick={() => move(item, "inbox", t.toastToInbox)}
-              >
-                <RestoreIcon />
-              </IconBtn>
-              <IconBtn
-                label={t.actionToTrash}
-                onClick={() => move(item, "trash", t.toastTrashed)}
-              >
-                <TrashIcon />
-              </IconBtn>
-            </>
-          ) : (
-            <>
-              <IconBtn
-                label={t.actionRestore}
-                onClick={() => move(item, "inbox", t.toastRestored)}
-              >
-                <RestoreIcon />
-              </IconBtn>
-              {confirmingId === item.id ? (
-                <ConfirmBtn onClick={() => destroy(item)} />
-              ) : (
-                <IconBtn label={t.actionDelete} onClick={() => destroy(item)}>
-                  <TrashIcon />
-                </IconBtn>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-    </li>
+    <ArtifactCard
+      key={item.id}
+      item={item}
+      status={status}
+      category={categoryById[item.type]}
+      confirming={confirmingId === item.id}
+      selecting={selecting}
+      selected={selectedIds.has(item.id)}
+      onToggleSelected={() => toggleSelected(item.id)}
+      onKeep={() => keep(item)}
+      onDestroy={() => destroy(item)}
+      onMove={(to, message) => move(item, to, message)}
+      onOrganize={() => setOrganizingItem(item)}
+    />
   );
 
   return (
@@ -719,17 +570,6 @@ export default function Board({ status }: { status: ItemStatus }) {
   );
 }
 
-function ConfirmBtn({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex h-11 items-center justify-center rounded-full bg-[var(--accent)] px-2 text-xs font-semibold text-white"
-    >
-      {t.actionConfirm}
-    </button>
-  );
-}
-
 function FilterChip({
   active,
   color,
@@ -815,115 +655,5 @@ function EmptyState({
         <p className="mt-1 text-xs text-[var(--muted)]">{t.trashNote(30)}</p>
       )}
     </div>
-  );
-}
-
-function IconBtn({
-  label,
-  onClick,
-  children,
-}: {
-  label: string;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-      className="flex h-10 w-10 items-center justify-center rounded-xl text-[var(--muted)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--ink)] active:scale-95"
-    >
-      {children}
-    </button>
-  );
-}
-
-function PinIcon() {
-  return (
-    <svg
-      width="13"
-      height="13"
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      aria-hidden="true"
-    >
-      <path d="M9 3h6l-.6 5.2 3 3V14H13v7l-1 1-1-1v-7H6.6v-2.8l3-3L9 3Z" />
-    </svg>
-  );
-}
-
-export function ArchiveIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect x="3" y="4" width="18" height="4" rx="1" />
-      <path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8" />
-      <path d="M10 12h4" />
-    </svg>
-  );
-}
-
-export function TrashIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M3 6h18" />
-      <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />
-      <path d="M6 6l1 14a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-14" />
-    </svg>
-  );
-}
-
-export function RestoreIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8" />
-      <rect x="3" y="4" width="18" height="4" rx="1" />
-      <path d="M12 17v-5" />
-      <path d="m9.5 14 2.5-2.5L14.5 14" />
-    </svg>
-  );
-}
-
-export function KeepIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16l-6-3.5L6 21Z" />
-    </svg>
   );
 }

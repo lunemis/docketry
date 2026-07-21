@@ -8,7 +8,7 @@ import {
   KeepIcon,
   RestoreIcon,
   TrashIcon,
-} from "../../../components/Board";
+} from "../../../components/ItemActionIcons";
 import { BrandMark } from "../../../components/Brand";
 import {
   FolderIcon,
