@@ -21,7 +21,7 @@ test("returns 503 instead of opening APIs when auth is unconfigured", async () =
 
 test("keeps health and app icons public", async () => {
   delete process.env.DROPBOARD_SESSION_SECRET;
-  for (const path of ["/api/health", "/icon.svg"]) {
+  for (const path of ["/api/health", "/icon.svg", "/apple-icon.png"]) {
     const response = await proxy(new NextRequest(`http://localhost${path}`));
     assert.equal(response.status, 200);
   }

@@ -5,6 +5,7 @@ import { SESSION_COOKIE, verifySessionToken } from "./lib/session";
 const PUBLIC_PATHS = [
   "/login",
   "/icon.svg",
+  "/apple-icon.png",
   "/api/auth/login",
   "/api/health",
 ];

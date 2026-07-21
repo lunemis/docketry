@@ -10,21 +10,21 @@ export function BrandMark({ className = "h-8 w-8" }: BrandMarkProps) {
       viewBox="0 0 32 32"
       fill="none"
     >
-      <rect width="32" height="32" rx="9" fill="var(--brand-ink)" />
-      <rect x="11" y="6" width="10" height="11" rx="2" fill="var(--accent)" />
-      <path
-        d="M16 9.5v4m0 0-2-2m2 2 2-2"
-        stroke="white"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
+      <rect width="32" height="32" rx="9" fill="#f7f2ea" />
+      <circle
+        cx="16"
+        cy="16"
+        r="9"
+        stroke="#202833"
+        strokeWidth="3"
       />
       <path
-        d="M8.5 17.5v3.25a3.75 3.75 0 0 0 3.75 3.75h7.5a3.75 3.75 0 0 0 3.75-3.75V17.5"
-        stroke="white"
-        strokeWidth="2"
+        d="M9.6 22.4a9 9 0 0 0 12.8 0"
+        stroke="#6558d8"
+        strokeWidth="3"
         strokeLinecap="round"
       />
+      <circle cx="22.8" cy="8.2" r="4" fill="#e85d40" />
     </svg>
   );
 }
