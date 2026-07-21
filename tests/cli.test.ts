@@ -24,6 +24,8 @@ test("prints help successfully without a command", () => {
   assert.equal(result.status, 0);
   assert.match(result.stdout, /dropboard publish/);
   assert.match(result.stdout, /--folder A\/B/);
+  assert.match(result.stdout, /dropboard update/);
+  assert.match(result.stdout, /--key stable\/key/);
 });
 
 test("rejects an invalid artifact type before publishing", () => {

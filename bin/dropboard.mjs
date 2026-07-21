@@ -6,7 +6,10 @@
  *   dropboard publish <file> [--title T] [--type review|decision|report|info|fun]
  *                         [--project P] [--folder A/B] [--summary S]
  *                         [--tags a,b] [--source S]
+ *                         [--key stable/key] [--note change-summary]
  *                         [--server URL]
+ *   dropboard update <item-id> <file> [--title T] [--type T] [--summary S]
+ *                         [--note change-summary] [--expected N]
  *   dropboard list [--status inbox|archived|trash]
  *
  * Config: ~/.config/dropboard/config.json  { "url": "...", "token": "..." }
@@ -97,13 +100,19 @@ async function publish(argv) {
 
   const body = {
     title: flags.title || deriveTitle(content, isMarkdown, file),
-    type,
     content,
     content_type: isMarkdown ? "markdown" : "html",
     source: flags.source || "dropboard-cli",
   };
+  if (flags.type || !flags.key) body.type = type;
   if (flags.project) body.project = flags.project;
   if (flags.folder) body.folder = flags.folder;
+  if (flags.key) body.document_key = flags.key;
+  if (flags.note) body.revision_note = flags.note;
+  if (flags.expected) {
+    if (!/^\d+$/.test(flags.expected)) die("--expected must be a positive revision number");
+    body.expected_revision = Number(flags.expected);
+  }
   if (flags.summary) body.summary = flags.summary;
   if (flags.tags) body.tags = flags.tags.split(",").map((t) => t.trim()).filter(Boolean);
   if ("temp" in flags) {
@@ -134,7 +143,60 @@ async function publish(argv) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) die(`publish failed (${res.status}): ${data.error ?? "unknown"}`);
 
-  console.log(`published: ${body.title}`);
+  console.log(`${data.updated ? "updated" : "published"}: ${body.title}`);
+  console.log(`${url}${data.url}`);
+}
+
+async function update(argv) {
+  const { flags, positional } = parseArgs(argv);
+  const [id, file] = positional;
+  if (!id || !file) {
+    die("usage: dropboard update <item-id> <file> [--note ...]");
+  }
+  if (flags.type && !TYPES.includes(flags.type)) {
+    die(`type must be one of: ${TYPES.join(", ")}`);
+  }
+  let content;
+  try {
+    content = await readFile(file, "utf8");
+  } catch {
+    die(`cannot read file: ${file}`);
+  }
+  const isMarkdown = /\.(md|markdown)$/i.test(file);
+  const body = {
+    content,
+    content_type: isMarkdown ? "markdown" : "html",
+    source: flags.source || "dropboard-cli",
+  };
+  if (flags.title) body.title = flags.title;
+  if (flags.type) body.type = flags.type;
+  if (flags.summary) body.summary = flags.summary;
+  if (flags.note) body.revision_note = flags.note;
+  if (flags.expected) {
+    if (!/^\d+$/.test(flags.expected)) die("--expected must be a positive revision number");
+    body.expected_revision = Number(flags.expected);
+  }
+
+  const cfg = loadConfig();
+  const url = serverUrl(flags, cfg);
+  const token = process.env.DROPBOARD_TOKEN || cfg.token;
+  if (!token) die(`no token. Set DROPBOARD_TOKEN or add "token" to ${CONFIG_PATH}`);
+  let res;
+  try {
+    res = await fetch(`${url}/api/items/${id}/revisions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    die(`server unreachable at ${url} (is your dropboard server running?)`);
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) die(`update failed (${res.status}): ${data.error ?? "unknown"}`);
+  console.log(`updated: ${data.item.title} (v${data.item.revision})`);
   console.log(`${url}${data.url}`);
 }
 
@@ -161,13 +223,15 @@ async function list(argv) {
   }
   for (const it of items) {
     const read = it.read_at ? " " : "●";
-    console.log(`${read} [${it.type}] ${it.id}  ${it.title}`);
+    const version = (it.revision ?? 1) > 1 ? ` v${it.revision}` : "";
+    console.log(`${read} [${it.type}] ${it.id}${version}  ${it.title}`);
   }
   if (hasMore) console.log("(more items available; narrow the list with --status)");
 }
 
 const [cmd, ...rest] = process.argv.slice(2);
 if (cmd === "publish") await publish(rest);
+else if (cmd === "update") await update(rest);
 else if (cmd === "list") await list(rest);
 else {
   console.log(`dropboard — publish AI deliverables to your review board
@@ -177,6 +241,9 @@ commands:
                         [--temp [30m|2h|1d]]   # ephemeral: auto-deletes (default 2h)
                         [--project P] [--folder A/B] [--summary S]
                         [--tags a,b] [--server URL]
+                        [--key stable/key] [--note change-summary]
+  dropboard update <item-id> <file> [--title T] [--type T] [--summary S]
+                        [--note change-summary] [--expected N]
   dropboard list [--status inbox|archived|trash]
 
 .md/.markdown files are published as markdown, everything else as html.

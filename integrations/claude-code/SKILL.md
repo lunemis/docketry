@@ -39,6 +39,11 @@ press Keep to retain one. When unsure, publish as keep — deleting is easy.
      make sure one of them exists.
    - Fallback without the CLI: read `~/.config/dropboard/config.json` (url/token) and
      `POST {url}/api/items` with a Bearer token (JSON: title/type/content/content_type/…).
+   - For a known existing document, update it instead of creating a duplicate:
+     `dropboard update <item-id> <file> --note "<what changed>"`.
+   - For an intentionally recurring living document, use the same explicit
+     `--key <project/stable-slug>` on every publish. The first call creates it;
+     later calls add immutable revisions to the same item.
 3. **Report** the printed URL back to the user.
 
 ## Metadata rules
@@ -54,6 +59,9 @@ press Keep to retain one. When unsure, publish as keep — deleting is easy.
 - `--folder`: optional path inside the project. Use it only when the destination is
   already clear from context; otherwise leave the item for the user's Unfiled queue.
 - `--tags`: useful search terms. The user can edit project, folder, and tags later.
+- `--key`: only for clearly recurring documents such as a roadmap, spec, or weekly
+  report. Never infer a key from a vaguely similar title; when unsure, publish a new item.
+- `--note`: short description of what changed in this revision.
 
 ## HTML artifact quality rules
 

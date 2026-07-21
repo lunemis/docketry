@@ -20,6 +20,10 @@ deliverable to my dropboard:
    omit it for documents worth keeping.
    Only set --folder when the destination is already clear; otherwise leave it
    unfiled so I can organize it later. I can edit project, folder, and tags in the UI.
+   If I am updating a known existing document, use:
+   dropboard update <item-id> <file> --note "<what changed>"
+   For an explicitly recurring roadmap/spec/report, reuse a stable
+   --key <project/slug>; never merge merely similar titles automatically.
    (Without the CLI: POST {URL}/api/items with header "Authorization: Bearer <token>"
    and JSON body {title, type, summary, content, content_type: "html"|"markdown"}.
    Read url/token from ~/.config/dropboard/config.json.)
