@@ -207,6 +207,23 @@ a {
   border-radius: 0.45rem;
 }
 
+.organizer-input {
+  height: 2.75rem;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--surface-muted);
+  padding: 0 0.75rem;
+  color: var(--ink);
+  font-size: 0.875rem;
+  outline: none;
+}
+
+.organizer-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
 .empty-panel {
   background: var(--surface-muted);
 }
